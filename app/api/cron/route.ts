@@ -1,0 +1,133 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { discoverGoogleFonts } from '@/lib/discover/google-fonts'
+import { discoverFontshare } from '@/lib/discover/fontshare'
+import { discoverColorHunt } from '@/lib/discover/colorhunt'
+import { renderSlide, uploadSlide } from '@/lib/render'
+import { addPost, addSeen } from '@/lib/store'
+import { TitleCard } from '@/lib/slides/title-card'
+import { FontSlide } from '@/lib/slides/font-slide'
+import { PaletteSlide } from '@/lib/slides/palette-slide'
+import { CTACard } from '@/lib/slides/cta-card'
+import { Post, FontItem, PaletteItem } from '@/types'
+import { randomUUID } from 'crypto'
+import React from 'react'
+
+export const maxDuration = 60
+export const runtime = 'nodejs'
+
+export async function GET(req: NextRequest) {
+  const secret = process.env.CRON_SECRET
+  const auth = req.headers.get('authorization')
+  if (!secret || auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Discover fonts
+  const [googleFonts, fontshareFonts] = await Promise.allSettled([
+    discoverGoogleFonts(),
+    discoverFontshare(),
+  ])
+
+  const allFonts: FontItem[] = [
+    ...(googleFonts.status === 'fulfilled' ? googleFonts.value : []),
+    ...(fontshareFonts.status === 'fulfilled' ? fontshareFonts.value : []),
+  ].slice(0, 5)
+
+  // Discover palettes
+  const palettesResult = await Promise.allSettled([discoverColorHunt()])
+  const allPalettes: PaletteItem[] = (
+    palettesResult[0].status === 'fulfilled' ? palettesResult[0].value : []
+  ).slice(0, 5)
+
+  const postsCreated: string[] = []
+
+  // Generate font post
+  if (allFonts.length > 0) {
+    const postId = randomUUID()
+    const title = `${allFonts.length} Fonts Worth Knowing`
+    const slideUrls: string[] = []
+
+    // Fetch font files and render slides
+    const titleBuffer = await renderSlide(React.createElement(TitleCard, { title }))
+    slideUrls.push(await uploadSlide(titleBuffer, `slides/${postId}/0.png`))
+
+    for (let i = 0; i < allFonts.length; i++) {
+      const font = allFonts[i]
+      let fontData: ArrayBuffer | undefined
+      try {
+        const fontRes = await fetch(font.fontFileUrl)
+        fontData = await fontRes.arrayBuffer()
+      } catch (_) {}
+
+      const fonts = fontData
+        ? [{ name: font.name, data: fontData, weight: 400 as const }]
+        : []
+      const buffer = await renderSlide(
+        React.createElement(FontSlide, { font }),
+        fonts
+      )
+      slideUrls.push(await uploadSlide(buffer, `slides/${postId}/${i + 1}.png`))
+    }
+
+    const ctaBuffer = await renderSlide(React.createElement(CTACard))
+    slideUrls.push(await uploadSlide(ctaBuffer, `slides/${postId}/${allFonts.length + 1}.png`))
+
+    const caption = `5 fonts you need to know 🖋️\n\n${allFonts.map(f => f.name).join(' · ')}\n\n#typography #fonts #design #uidesign #typeface #graphicdesign #fontoftheday #designinspiration`
+
+    const post: Post = {
+      id: postId,
+      type: 'fonts',
+      title,
+      items: allFonts,
+      slideUrls,
+      caption,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    }
+    await addPost(post)
+    for (const font of allFonts) {
+      await addSeen('fonts', font.source === 'google_fonts' ? font.name : font.id)
+    }
+    postsCreated.push(postId)
+  }
+
+  // Generate palette post
+  if (allPalettes.length > 0) {
+    const postId = randomUUID()
+    const title = `${allPalettes.length} Color Palettes to Steal`
+    const slideUrls: string[] = []
+
+    const titleBuffer = await renderSlide(React.createElement(TitleCard, { title }))
+    slideUrls.push(await uploadSlide(titleBuffer, `slides/${postId}/0.png`))
+
+    for (let i = 0; i < allPalettes.length; i++) {
+      const palette = allPalettes[i]
+      const buffer = await renderSlide(React.createElement(PaletteSlide, { palette }))
+      slideUrls.push(await uploadSlide(buffer, `slides/${postId}/${i + 1}.png`))
+    }
+
+    const ctaBuffer = await renderSlide(React.createElement(CTACard))
+    slideUrls.push(await uploadSlide(ctaBuffer, `slides/${postId}/${allPalettes.length + 1}.png`))
+
+    const firstPalette = allPalettes[0]
+    const caption = `Color palettes to steal 🎨\n\n${firstPalette.colors.join(' ')}\n\n#colorpalette #colorinspiration #design #uidesign #colorscheme #graphicdesign #colortheory #designinspiration`
+
+    const post: Post = {
+      id: postId,
+      type: 'palettes',
+      title,
+      items: allPalettes,
+      slideUrls,
+      caption,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    }
+    await addPost(post)
+    for (const palette of allPalettes) {
+      await addSeen('palettes', palette.id)
+    }
+    postsCreated.push(postId)
+  }
+
+  return NextResponse.json({ ok: true, postsCreated: postsCreated.length })
+}
