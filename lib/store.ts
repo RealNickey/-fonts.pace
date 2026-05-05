@@ -20,16 +20,19 @@ export async function updatePost(id: string, updates: Partial<Post>): Promise<vo
     if (idx === -1) continue
 
     const updated = { ...posts[idx], ...updates }
-    posts.splice(idx, 1)
-    await kv.set(`posts:${status}`, posts)
-
     const newStatus = updates.status ?? status
+
     if (newStatus !== status) {
+      // Remove from original status
+      posts.splice(idx, 1)
+      await kv.set(`posts:${status}`, posts)
+      // Add to new status
       const targetPosts = await getPosts(newStatus)
       targetPosts.push(updated)
       await kv.set(`posts:${newStatus}`, targetPosts)
     } else {
-      posts.splice(idx, 0, updated)
+      // Update in place within same status
+      posts.splice(idx, 1, updated)
       await kv.set(`posts:${status}`, posts)
     }
     return

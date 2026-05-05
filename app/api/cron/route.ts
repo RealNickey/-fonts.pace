@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       try {
         const fontRes = await fetch(font.fontFileUrl)
         fontData = await fontRes.arrayBuffer()
-      } catch (_) {}
+      } catch (_error) {}
 
       const fonts = fontData
         ? [{ name: font.name, data: fontData, weight: 400 as const }]

@@ -10,6 +10,21 @@ import React from 'react'
 export const maxDuration = 60
 export const runtime = 'nodejs'
 
+const ALLOWED_FONT_HOSTS = [
+  'fonts.gstatic.com',
+  'api.fontshare.com',
+  'cdn.fontshare.com',
+]
+
+function isSafeFontUrl(url: string): boolean {
+  try {
+    const { hostname, protocol } = new URL(url)
+    return protocol === 'https:' && ALLOWED_FONT_HOSTS.some(h => hostname === h || hostname.endsWith(`.${h}`))
+  } catch {
+    return false
+  }
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json()
   const { type, items, postId } = body
@@ -27,9 +42,11 @@ export async function POST(req: NextRequest) {
       const font = items[i] as FontItem
       let fontData: ArrayBuffer | undefined
       try {
-        const fontRes = await fetch(font.fontFileUrl)
-        fontData = await fontRes.arrayBuffer()
-      } catch (_) {}
+        if (isSafeFontUrl(font.fontFileUrl)) {
+          const fontRes = await fetch(font.fontFileUrl)
+          fontData = await fontRes.arrayBuffer()
+        }
+      } catch (_error) {}
       const fonts = fontData
         ? [{ name: font.name, data: fontData, weight: 400 as const }]
         : []
