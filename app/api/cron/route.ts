@@ -12,6 +12,21 @@ import { Post, FontItem, PaletteItem } from '@/types'
 import { randomUUID } from 'crypto'
 import React from 'react'
 
+const ALLOWED_FONT_HOSTS = ['fonts.gstatic.com', 'api.fontshare.com', 'cdn.fontshare.com']
+
+function getSafeFontUrl(rawUrl: string): URL | null {
+  try {
+    const parsed = new URL(rawUrl)
+    if (
+      parsed.protocol === 'https:' &&
+      ALLOWED_FONT_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`))
+    ) {
+      return parsed
+    }
+  } catch {}
+  return null
+}
+
 export const maxDuration = 60
 export const runtime = 'nodejs'
 
@@ -54,10 +69,15 @@ export async function GET(req: NextRequest) {
     for (let i = 0; i < allFonts.length; i++) {
       const font = allFonts[i]
       let fontData: ArrayBuffer | undefined
-      try {
-        const fontRes = await fetch(font.fontFileUrl)
-        fontData = await fontRes.arrayBuffer()
-      } catch (_error) {}
+      const safeUrl = getSafeFontUrl(font.fontFileUrl)
+      if (safeUrl) {
+        try {
+          const fontRes = await fetch(safeUrl)
+          fontData = await fontRes.arrayBuffer()
+        } catch (_error) {
+          console.warn(`Failed to fetch font file: ${safeUrl.hostname}`)
+        }
+      }
 
       const fonts = fontData
         ? [{ name: font.name, data: fontData, weight: 400 as const }]

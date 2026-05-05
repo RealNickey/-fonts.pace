@@ -16,13 +16,22 @@ const ALLOWED_FONT_HOSTS = [
   'cdn.fontshare.com',
 ]
 
-function isSafeFontUrl(url: string): boolean {
+/**
+ * Validates a font URL against the allowlist and returns a parsed URL object
+ * if safe, or null otherwise. The caller must use the returned URL object
+ * (not the original string) to prevent SSRF.
+ */
+function getSafeFontUrl(rawUrl: string): URL | null {
   try {
-    const { hostname, protocol } = new URL(url)
-    return protocol === 'https:' && ALLOWED_FONT_HOSTS.some(h => hostname === h || hostname.endsWith(`.${h}`))
-  } catch {
-    return false
-  }
+    const parsed = new URL(rawUrl)
+    if (
+      parsed.protocol === 'https:' &&
+      ALLOWED_FONT_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`))
+    ) {
+      return parsed
+    }
+  } catch {}
+  return null
 }
 
 export async function POST(req: NextRequest) {
@@ -41,12 +50,15 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < items.length; i++) {
       const font = items[i] as FontItem
       let fontData: ArrayBuffer | undefined
-      try {
-        if (isSafeFontUrl(font.fontFileUrl)) {
-          const fontRes = await fetch(font.fontFileUrl)
+      const safeUrl = getSafeFontUrl(font.fontFileUrl)
+      if (safeUrl) {
+        try {
+          const fontRes = await fetch(safeUrl)
           fontData = await fontRes.arrayBuffer()
+        } catch (_error) {
+          console.warn(`Failed to fetch font file: ${safeUrl.hostname}`)
         }
-      } catch (_error) {}
+      }
       const fonts = fontData
         ? [{ name: font.name, data: fontData, weight: 400 as const }]
         : []
