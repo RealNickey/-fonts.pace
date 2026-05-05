@@ -1,0 +1,14 @@
+name: Daily Pipeline
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Trigger pipeline
+        run: |
+          curl -f -X GET "${{ secrets.VERCEL_CRON_URL }}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
