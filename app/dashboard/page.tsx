@@ -3,6 +3,7 @@ import { uploadSlideToIG, createCarousel, publishCarousel } from '@/lib/instagra
 import { Post } from '@/types'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
+import { SubmitButton } from './SubmitButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,8 +64,8 @@ export default async function DashboardPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>Fonts.pace Dashboard</h1>
         <form action={runPipeline}>
-          <button
-            type="submit"
+          <SubmitButton
+            pendingText="Running..."
             style={{
               padding: '10px 20px',
               backgroundColor: '#7c3aed',
@@ -77,7 +78,7 @@ export default async function DashboardPage() {
             }}
           >
             Run Pipeline
-          </button>
+          </SubmitButton>
         </form>
       </div>
 
@@ -172,8 +173,8 @@ export default async function DashboardPage() {
           <div style={{ display: 'flex', gap: 12 }}>
             <form action={publishPost}>
               <input type="hidden" name="postId" value={post.id} />
-              <button
-                type="submit"
+              <SubmitButton
+                pendingText="Publishing..."
                 style={{
                   padding: '10px 20px',
                   backgroundColor: '#059669',
@@ -186,13 +187,13 @@ export default async function DashboardPage() {
                 }}
               >
                 Publish now
-              </button>
+              </SubmitButton>
             </form>
 
             <form action={rejectPost}>
               <input type="hidden" name="postId" value={post.id} />
-              <button
-                type="submit"
+              <SubmitButton
+                pendingText="Rejecting..."
                 style={{
                   padding: '10px 20px',
                   backgroundColor: '#fff',
@@ -205,7 +206,7 @@ export default async function DashboardPage() {
                 }}
               >
                 Reject
-              </button>
+              </SubmitButton>
             </form>
           </div>
         </div>
