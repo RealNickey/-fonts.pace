@@ -54,7 +54,6 @@ cp .env.local.example .env.local
 | `KV_REST_API_READ_ONLY_TOKEN` | Vercel KV REST API read-only token |
 | `CRON_SECRET` | Random secret to protect the `/api/cron` endpoint |
 | `NEXT_PUBLIC_BRAND_HANDLE` | Your Instagram handle (e.g. `@fonts.pace`) |
-| `NEXT_PUBLIC_BASE_URL` | Full origin URL of your deployment |
 
 ### 3. Run locally
 
