@@ -1,5 +1,7 @@
+import { env } from '@/lib/env'
+
 export function TitleCard({ title }: { title: string }) {
-  const brandHandle = process.env.NEXT_PUBLIC_BRAND_HANDLE ?? '@fontspace'
+  const brandHandle = env.brandHandle
   const now = new Date()
   const dateStr = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 

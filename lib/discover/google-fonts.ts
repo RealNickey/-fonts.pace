@@ -1,9 +1,9 @@
 import { FontItem } from '@/types'
 import { isSeen } from '@/lib/dedup'
+import { env } from '@/lib/env'
 
 export async function discoverGoogleFonts(): Promise<FontItem[]> {
-  const apiKey = process.env.GOOGLE_FONTS_API_KEY
-  if (!apiKey) throw new Error('GOOGLE_FONTS_API_KEY is not set')
+  const apiKey = env.googleFontsApiKey
 
   const res = await fetch(
     `https://www.googleapis.com/webfonts/v1/webfonts?key=${apiKey}&sort=date`

@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv'
+import { kv } from '@/lib/kv'
 import { Post } from '@/types'
 
 export async function getPosts(status: Post['status']): Promise<Post[]> {

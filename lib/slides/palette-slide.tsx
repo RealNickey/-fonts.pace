@@ -1,4 +1,5 @@
 import { PaletteItem } from '@/types'
+import { env } from '@/lib/env'
 
 function isLightColor(hex: string): boolean {
   const r = parseInt(hex.slice(1, 3), 16)
@@ -9,7 +10,7 @@ function isLightColor(hex: string): boolean {
 }
 
 export function PaletteSlide({ palette }: { palette: PaletteItem }) {
-  const brandHandle = process.env.NEXT_PUBLIC_BRAND_HANDLE ?? '@fontspace'
+  const brandHandle = env.brandHandle
   const n = palette.colors.length
   const blockWidth = Math.floor(1080 / n)
 

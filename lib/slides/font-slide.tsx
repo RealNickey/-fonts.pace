@@ -1,7 +1,8 @@
 import { FontItem } from '@/types'
+import { env } from '@/lib/env'
 
 export function FontSlide({ font }: { font: FontItem }) {
-  const brandHandle = process.env.NEXT_PUBLIC_BRAND_HANDLE ?? '@fontspace'
+  const brandHandle = env.brandHandle
 
   return (
     <div

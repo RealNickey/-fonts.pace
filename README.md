@@ -52,8 +52,14 @@ cp .env.local.example .env.local
 | `KV_REST_API_URL` | Vercel KV REST API base URL |
 | `KV_REST_API_TOKEN` | Vercel KV REST API token |
 | `KV_REST_API_READ_ONLY_TOKEN` | Vercel KV REST API read-only token |
+| `REDIS_URL` | Optional alias for `KV_URL` (accepted by code) |
+| `UPSTASH_REDIS_REST_URL` | Optional alias for `KV_REST_API_URL` |
+| `UPSTASH_REDIS_REST_TOKEN` | Optional alias for `KV_REST_API_TOKEN` |
+| `UPSTASH_REDIS_REST_READ_ONLY_TOKEN` | Optional alias for `KV_REST_API_READ_ONLY_TOKEN` |
 | `CRON_SECRET` | Random secret to protect the `/api/cron` endpoint |
 | `NEXT_PUBLIC_BRAND_HANDLE` | Your Instagram handle (e.g. `@fonts.pace`) |
+
+`VERCEL_OIDC_TOKEN` may appear after `vercel pull`, but this app does not use it for runtime features.
 
 ### 3. Run locally
 

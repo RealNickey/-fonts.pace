@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv'
+import { kv } from '@/lib/kv'
 
 export async function isSeen(type: 'fonts' | 'palettes', key: string): Promise<boolean> {
   const result = await kv.sismember(`seen:${type}`, key)

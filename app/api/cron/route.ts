@@ -11,6 +11,7 @@ import { CTACard } from '@/lib/slides/cta-card'
 import { Post, FontItem, PaletteItem } from '@/types'
 import { randomUUID } from 'crypto'
 import React from 'react'
+import { env } from '@/lib/env'
 
 const ALLOWED_FONT_HOSTS = ['fonts.gstatic.com', 'api.fontshare.com', 'cdn.fontshare.com']
 
@@ -31,7 +32,7 @@ export const maxDuration = 60
 export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
+  const secret = env.cronSecret
   const auth = req.headers.get('authorization')
   if (!secret || auth !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

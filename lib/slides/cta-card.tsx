@@ -1,5 +1,7 @@
+import { env } from '@/lib/env'
+
 export function CTACard() {
-  const brandHandle = process.env.NEXT_PUBLIC_BRAND_HANDLE ?? '@fontspace'
+  const brandHandle = env.brandHandle
 
   return (
     <div

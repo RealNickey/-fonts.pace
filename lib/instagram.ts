@@ -1,6 +1,8 @@
+import { env } from '@/lib/env'
+
 export async function uploadSlideToIG(imageUrl: string): Promise<string> {
-  const igUserId = process.env.IG_USER_ID!
-  const accessToken = process.env.IG_ACCESS_TOKEN!
+  const igUserId = env.igUserId
+  const accessToken = env.igAccessToken
 
   const params = new URLSearchParams({
     image_url: imageUrl,
@@ -25,8 +27,8 @@ export async function createCarousel(
   childIds: string[],
   caption: string
 ): Promise<string> {
-  const igUserId = process.env.IG_USER_ID!
-  const accessToken = process.env.IG_ACCESS_TOKEN!
+  const igUserId = env.igUserId
+  const accessToken = env.igAccessToken
 
   const params = new URLSearchParams({
     media_type: 'CAROUSEL',
@@ -49,8 +51,8 @@ export async function createCarousel(
 }
 
 export async function publishCarousel(containerId: string): Promise<string> {
-  const igUserId = process.env.IG_USER_ID!
-  const accessToken = process.env.IG_ACCESS_TOKEN!
+  const igUserId = env.igUserId
+  const accessToken = env.igAccessToken
 
   const params = new URLSearchParams({
     creation_id: containerId,

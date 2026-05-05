@@ -3,6 +3,7 @@ import { uploadSlideToIG, createCarousel, publishCarousel } from '@/lib/instagra
 import { Post } from '@/types'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
+import { env } from '@/lib/env'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,12 +42,12 @@ async function runPipeline(_formData: FormData) {
   const host =
     headersList.get('x-forwarded-host') ??
     headersList.get('host') ??
-    process.env.VERCEL_URL ??
+    env.vercelUrl ??
     'localhost:3000'
   const proto = headersList.get('x-forwarded-proto') ?? (host.includes('localhost') ? 'http' : 'https')
   await fetch(`${proto}://${host}/api/cron`, {
     headers: {
-      Authorization: `Bearer ${process.env.CRON_SECRET}`,
+      Authorization: `Bearer ${env.cronSecret}`,
     },
   })
   revalidatePath('/dashboard')
