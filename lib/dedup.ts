@@ -1,8 +1,8 @@
 import { kv } from '@vercel/kv'
 
 export async function isSeen(type: 'fonts' | 'palettes', key: string): Promise<boolean> {
-  const seen = await kv.smembers(`seen:${type}`) as string[]
-  return seen.includes(key)
+  const result = await kv.sismember(`seen:${type}`, key)
+  return result === 1
 }
 
 export async function addSeen(type: 'fonts' | 'palettes', key: string): Promise<void> {
