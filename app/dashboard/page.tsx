@@ -11,13 +11,12 @@ async function publishPost(formData: FormData) {
   const postId = formData.get('postId') as string
   const posts = await getPosts('pending')
   const post = posts.find(p => p.id === postId)
-  if (!post) return
-
-  const childIds: string[] = []
-  for (const url of post.slideUrls) {
-    const id = await uploadSlideToIG(url)
-    childIds.push(id)
+  if (!post) {
+    console.error(`publishPost: post not found for id=${postId}`)
+    return
   }
+
+  const childIds = await Promise.all(post.slideUrls.map(url => uploadSlideToIG(url)))
   const containerId = await createCarousel(childIds, post.caption)
   const igMediaId = await publishCarousel(containerId)
   await updatePost(postId, {
@@ -38,8 +37,13 @@ async function rejectPost(formData: FormData) {
 async function runPipeline(_formData: FormData) {
   'use server'
   const headersList = await headers()
-  const host = headersList.get('x-forwarded-host') ?? headersList.get('host') ?? 'localhost:3000'
-  const proto = headersList.get('x-forwarded-proto') ?? 'http'
+  // x-forwarded-host / host are always present on Vercel; VERCEL_URL is the auto-injected fallback
+  const host =
+    headersList.get('x-forwarded-host') ??
+    headersList.get('host') ??
+    process.env.VERCEL_URL ??
+    'localhost:3000'
+  const proto = headersList.get('x-forwarded-proto') ?? (host.includes('localhost') ? 'http' : 'https')
   await fetch(`${proto}://${host}/api/cron`, {
     headers: {
       Authorization: `Bearer ${process.env.CRON_SECRET}`,
