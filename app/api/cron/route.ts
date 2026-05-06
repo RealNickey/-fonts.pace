@@ -38,22 +38,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Discover fonts
-  const [googleFonts, fontshareFonts] = await Promise.allSettled([
-    discoverGoogleFonts(),
-    discoverFontshare(),
-  ])
+  const { searchParams } = new URL(req.url)
+  const templateParam = searchParams.get('template') || 'all'
+  const generateFonts = templateParam === 'all' || templateParam === 'fonts'
+  const generatePalettes = templateParam === 'all' || templateParam === 'palettes'
 
-  const allFonts: FontItem[] = [
-    ...(googleFonts.status === 'fulfilled' ? googleFonts.value : []),
-    ...(fontshareFonts.status === 'fulfilled' ? fontshareFonts.value : []),
-  ].slice(0, 5)
+  // Discover fonts
+  let allFonts: FontItem[] = []
+  if (generateFonts) {
+    const [googleFonts, fontshareFonts] = await Promise.allSettled([
+      discoverGoogleFonts(),
+      discoverFontshare(),
+    ])
+
+    allFonts = [
+      ...(googleFonts.status === 'fulfilled' ? googleFonts.value : []),
+      ...(fontshareFonts.status === 'fulfilled' ? fontshareFonts.value : []),
+    ].slice(0, 5)
+  }
 
   // Discover palettes
-  const palettesResult = await Promise.allSettled([discoverColorHunt()])
-  const allPalettes: PaletteItem[] = (
-    palettesResult[0].status === 'fulfilled' ? palettesResult[0].value : []
-  ).slice(0, 5)
+  let allPalettes: PaletteItem[] = []
+  if (generatePalettes) {
+    const palettesResult = await Promise.allSettled([discoverColorHunt()])
+    allPalettes = (
+      palettesResult[0].status === 'fulfilled' ? palettesResult[0].value : []
+    ).slice(0, 5)
+  }
 
   const postsCreated: string[] = []
 
