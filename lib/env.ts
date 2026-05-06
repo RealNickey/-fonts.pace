@@ -15,10 +15,10 @@ export const env = {
     return required('GOOGLE_FONTS_API_KEY')
   },
   get igAccessToken() {
-    return required('IG_ACCESS_TOKEN')
+    return pick(process.env.IG_ACCESS_TOKEN)
   },
   get igUserId() {
-    return required('IG_USER_ID')
+    return pick(process.env.IG_USER_ID)
   },
   get cronSecret() {
     return required('CRON_SECRET')

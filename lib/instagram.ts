@@ -4,6 +4,11 @@ export async function uploadSlideToIG(imageUrl: string): Promise<string> {
   const igUserId = env.igUserId
   const accessToken = env.igAccessToken
 
+  if (!igUserId || !accessToken) {
+    console.warn(`[DRY RUN] Skipping IG slide upload, missing credentials: ${imageUrl}`)
+    return `dummy_slide_${Math.random().toString(36).substring(7)}`
+  }
+
   const params = new URLSearchParams({
     image_url: imageUrl,
     is_carousel_item: 'true',
@@ -30,6 +35,11 @@ export async function createCarousel(
   const igUserId = env.igUserId
   const accessToken = env.igAccessToken
 
+  if (!igUserId || !accessToken) {
+    console.warn(`[DRY RUN] Skipping IG carousel creation, missing credentials`)
+    return `dummy_carousel_${Math.random().toString(36).substring(7)}`
+  }
+
   const params = new URLSearchParams({
     media_type: 'CAROUSEL',
     children: childIds.join(','),
@@ -53,6 +63,11 @@ export async function createCarousel(
 export async function publishCarousel(containerId: string): Promise<string> {
   const igUserId = env.igUserId
   const accessToken = env.igAccessToken
+
+  if (!igUserId || !accessToken) {
+    console.warn(`[DRY RUN] Skipping IG carousel publish, missing credentials. Dummy container: ${containerId}`)
+    return `dummy_publish_${Math.random().toString(36).substring(7)}`
+  }
 
   const params = new URLSearchParams({
     creation_id: containerId,
