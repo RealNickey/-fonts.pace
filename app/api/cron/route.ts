@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { discoverGoogleFonts } from '@/lib/discover/google-fonts'
 import { discoverFontshare } from '@/lib/discover/fontshare'
 import { discoverColorHunt } from '@/lib/discover/colorhunt'
+import { discoverDuotones } from '@/lib/discover/duotone'
 import { renderSlide, uploadSlide } from '@/lib/render'
 import { addPost, addSeen } from '@/lib/store'
 import { TitleCard } from '@/lib/slides/title-card'
 import { FontSlide } from '@/lib/slides/font-slide'
 import { PaletteSlide } from '@/lib/slides/palette-slide'
 import { CTACard } from '@/lib/slides/cta-card'
-import { Post, FontItem, PaletteItem } from '@/types'
+import { DuotoneSlide } from '@/lib/slides/duotone-slide'
+import { DuotoneTitleCard } from '@/lib/slides/duotone-title-card'
+import { DuotoneCTACard } from '@/lib/slides/duotone-cta-card'
+import { Post, FontItem, PaletteItem, DuotoneItem } from '@/types'
 import { randomUUID } from 'crypto'
 import React from 'react'
 import { env } from '@/lib/env'
@@ -31,6 +35,23 @@ function getSafeFontUrl(rawUrl: string): URL | null {
 export const maxDuration = 60
 export const runtime = 'nodejs'
 
+async function loadJaroFont(): Promise<ArrayBuffer | undefined> {
+  try {
+    const cssRes = await fetch('https://fonts.googleapis.com/css2?family=Jaro&display=swap', {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    })
+    const css = await cssRes.text()
+    const match = css.match(/url\((https:\/\/fonts\.gstatic\.com[^)]+\.(?:woff2|ttf))\)/)
+    if (match) {
+      const fontRes = await fetch(match[1])
+      return await fontRes.arrayBuffer()
+    }
+  } catch (error) {
+    console.warn('Failed to fetch Jaro font', error)
+  }
+  return undefined
+}
+
 export async function GET(req: NextRequest) {
   const secret = env.cronSecret
   const auth = req.headers.get('authorization')
@@ -42,6 +63,7 @@ export async function GET(req: NextRequest) {
   const templateParam = searchParams.get('template') || 'all'
   const generateFonts = templateParam === 'all' || templateParam === 'fonts'
   const generatePalettes = templateParam === 'all' || templateParam === 'palettes'
+  const generateDuotones = templateParam === 'all' || templateParam === 'duotone'
 
   // Discover fonts
   let allFonts: FontItem[] = []
@@ -64,6 +86,12 @@ export async function GET(req: NextRequest) {
     allPalettes = (
       palettesResult[0].status === 'fulfilled' ? palettesResult[0].value : []
     ).slice(0, 5)
+  }
+
+  // Discover duotones
+  let allDuotones: DuotoneItem[] = []
+  if (generateDuotones) {
+    allDuotones = await discoverDuotones()
   }
 
   const postsCreated: string[] = []
@@ -158,6 +186,52 @@ export async function GET(req: NextRequest) {
     for (const palette of allPalettes) {
       await addSeen('palettes', palette.id)
     }
+    postsCreated.push(postId)
+  }
+
+  // Generate duotone post
+  if (allDuotones.length > 0) {
+    const postId = randomUUID()
+    const title = `${allDuotones.length} Duotone Palettes`
+    const slideUrls: string[] = []
+
+    const seedDuotone = allDuotones[0]
+    const jaroFontData = await loadJaroFont()
+    const jaroFonts = jaroFontData ? [{ name: 'Jaro', data: jaroFontData, weight: 400 as const }] : []
+
+    const titleBuffer = await renderSlide(
+      React.createElement(DuotoneTitleCard, { title, item: seedDuotone }),
+      jaroFonts,
+      1350
+    )
+    slideUrls.push(await uploadSlide(titleBuffer, `slides/${postId}/0.png`))
+
+    for (let i = 0; i < allDuotones.length; i++) {
+      const item = allDuotones[i]
+      const buffer = await renderSlide(React.createElement(DuotoneSlide, { item }), jaroFonts, 1350)
+      slideUrls.push(await uploadSlide(buffer, `slides/${postId}/${i + 1}.png`))
+    }
+
+    const ctaBuffer = await renderSlide(
+      React.createElement(DuotoneCTACard, { item: seedDuotone }),
+      jaroFonts,
+      1350
+    )
+    slideUrls.push(await uploadSlide(ctaBuffer, `slides/${postId}/${allDuotones.length + 1}.png`))
+
+    const caption = `Perfect color pairs 🎨\n\n#colorpalette #duotone #design #uidesign #colorscheme #graphicdesign #colortheory #designinspiration`
+
+    const post: Post = {
+      id: postId,
+      type: 'duotone',
+      title,
+      items: allDuotones,
+      slideUrls,
+      caption,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    }
+    await addPost(post)
     postsCreated.push(postId)
   }
 

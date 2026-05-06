@@ -21,12 +21,12 @@ function getDefaultFont(): ArrayBuffer {
   return defaultFontData;
 }
 
-export async function renderSlide(jsx: ReactNode, customFonts: SatoriFont[] = []): Promise<Buffer> {
+export async function renderSlide(jsx: ReactNode, customFonts: SatoriFont[] = [], height = 1080): Promise<Buffer> {
   const fonts = [...customFonts, { name: 'Inter', data: getDefaultFont(), weight: 400 as const }];
 
   const svg = await satori(jsx as any, {
     width: 1080,
-    height: 1080,
+    height,
     fonts,
   })
   const resvg = new Resvg(svg, { fitTo: { mode: 'width', value: 1080 } })

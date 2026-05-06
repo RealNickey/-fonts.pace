@@ -17,11 +17,19 @@ export type PaletteItem = {
   likes: number
 }
 
+export type DuotoneItem = {
+  id: string
+  name1: string
+  hex1: string
+  name2: string
+  hex2: string
+}
+
 export type Post = {
   id: string
-  type: 'fonts' | 'palettes'
+  type: 'fonts' | 'palettes' | 'duotone'
   title: string
-  items: (FontItem | PaletteItem)[]
+  items: (FontItem | PaletteItem | DuotoneItem)[]
   slideUrls: string[]
   caption: string
   status: 'pending' | 'published' | 'rejected'

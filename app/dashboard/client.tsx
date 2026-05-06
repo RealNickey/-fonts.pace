@@ -170,7 +170,7 @@ export function DashboardUI({
 
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
             <div style={{ display: 'flex', border: '1px solid #333', borderRadius: '4px', overflow: 'hidden' }}>
-              {(['all', 'fonts', 'palettes'] as const).map(f => (
+              {(['all', 'fonts', 'palettes', 'duotone'] as const).map(f => (
                 <button
                   key={f}
                   onClick={() => { setFilter(f); setCurrentIndex(0); }}
@@ -180,9 +180,7 @@ export function DashboardUI({
                     backgroundColor: filter === f ? '#FFD60A' : 'transparent',
                     color: filter === f ? '#000' : '#888',
                     border: 'none',
-                    borderRight: f !== 'palettes' ? '1px solid #333' : 'none',
-                    cursor: 'pointer',
-                    fontWeight: filter === f ? 'bold' : 'normal',
+                    borderRight: f !== 'duotone' ? '1px solid #333' : 'none',
                     textTransform: 'uppercase',
                     transition: 'all 0.2s'
                   }}
@@ -212,6 +210,7 @@ export function DashboardUI({
                 <option value="all">ALL TMPL</option>
                 <option value="fonts">FONTS</option>
                 <option value="palettes">PALETTES</option>
+                <option value="duotone">DUOTONE</option>
               </select>
               
               <button
@@ -266,7 +265,7 @@ export function DashboardUI({
                   >
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                       <span className="tech-text" style={{ 
-                        padding: '4px 8px', backgroundColor: currentPost.type === 'fonts' ? '#0033ff' : '#ff0055',
+                        padding: '4px 8px', backgroundColor: currentPost.type === 'fonts' ? '#0033ff' : currentPost.type === 'palettes' ? '#ff0055' : '#ffaa00',
                         color: '#fff', fontSize: '11px', letterSpacing: '0.1em'
                       }}>
                         [{currentPost.type.toUpperCase()}]
