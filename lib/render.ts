@@ -2,6 +2,8 @@ import satori from 'satori'
 import { Resvg } from '@resvg/resvg-js'
 import { put } from '@vercel/blob'
 import { ReactNode } from 'react'
+import fs from 'fs'
+import path from 'path'
 
 export type SatoriFont = {
   name: string
@@ -10,7 +12,18 @@ export type SatoriFont = {
   style?: 'normal' | 'italic'
 }
 
-export async function renderSlide(jsx: ReactNode, fonts: SatoriFont[] = []): Promise<Buffer> {
+let defaultFontData: ArrayBuffer | null = null;
+function getDefaultFont(): ArrayBuffer {
+  if (!defaultFontData) {
+    const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'fonts', 'fallback.ttf'));
+    defaultFontData = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+  }
+  return defaultFontData;
+}
+
+export async function renderSlide(jsx: ReactNode, customFonts: SatoriFont[] = []): Promise<Buffer> {
+  const fonts = [...customFonts, { name: 'Inter', data: getDefaultFont(), weight: 400 as const }];
+
   const svg = await satori(jsx as any, {
     width: 1080,
     height: 1080,

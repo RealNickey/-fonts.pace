@@ -133,7 +133,7 @@ export default async function DashboardPage() {
             {post.slideUrls.map((url, i) => (
               <img
                 key={i}
-                src={url}
+                src={`/api/blob?url=${encodeURIComponent(url)}`}
                 alt={`Slide ${i + 1}`}
                 width={160}
                 height={160}

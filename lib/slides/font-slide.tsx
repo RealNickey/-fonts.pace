@@ -64,9 +64,10 @@ export function FontSlide({ font }: { font: FontItem }) {
           style={{
             fontSize: 16,
             color: '#888888',
+            display: 'flex',
           }}
         >
-          {font.category} · {font.designer}
+          {`${font.category || 'Sans'} · ${font.designer || 'Unknown'}`}
         </div>
         <div
           style={{
