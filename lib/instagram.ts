@@ -1,4 +1,8 @@
 import { env } from '@/lib/env'
+import dns from 'node:dns'
+
+// Fix Node.js fetch ConnectTimeoutError to graph.facebook.com over IPv6
+dns.setDefaultResultOrder('ipv4first')
 
 export async function uploadSlideToIG(imageUrl: string): Promise<string> {
   const igUserId = env.igUserId
