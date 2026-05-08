@@ -12,6 +12,7 @@ export type FontItem = {
 export type PaletteItem = {
   id: string
   colors: string[]
+  colorNames: string[]
   source: 'colorhunt'
   sourceUrl: string
   likes: number
