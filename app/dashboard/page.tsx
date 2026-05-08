@@ -1,5 +1,6 @@
 import { getPosts, updatePost } from '@/lib/store'
 import { uploadSlideToIG, createCarousel, publishCarousel } from '@/lib/instagram'
+import { del } from '@vercel/blob'
 import { Post } from '@/types'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
@@ -25,11 +26,19 @@ async function publishPostAction(postId: string, formData: FormData) {
     igMediaId,
     publishedAt: new Date().toISOString(),
   })
+  if (post.slideUrls.length > 0) {
+    await del(post.slideUrls)
+  }
   revalidatePath('/dashboard')
 }
 
 async function rejectPostAction(postId: string, formData: FormData) {
   'use server'
+  const posts = await getPosts('pending')
+  const post = posts.find(p => p.id === postId)
+  if (post && post.slideUrls.length > 0) {
+    await del(post.slideUrls)
+  }
   await updatePost(postId, { status: 'rejected' })
   revalidatePath('/dashboard')
 }

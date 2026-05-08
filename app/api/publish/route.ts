@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPosts, updatePost } from '@/lib/store'
 import { uploadSlideToIG, createCarousel, publishCarousel } from '@/lib/instagram'
+import { del } from '@vercel/blob'
 
 export const maxDuration = 60
 export const runtime = 'nodejs'
@@ -33,6 +34,10 @@ export async function POST(req: NextRequest) {
     igMediaId,
     publishedAt: new Date().toISOString(),
   })
+
+  if (post.slideUrls.length > 0) {
+    await del(post.slideUrls)
+  }
 
   return NextResponse.json({ ok: true, igMediaId })
 }

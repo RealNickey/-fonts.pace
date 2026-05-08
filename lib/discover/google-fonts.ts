@@ -17,14 +17,7 @@ export async function discoverGoogleFonts(): Promise<FontItem[]> {
     const seen = await isSeen('fonts', font.family)
     if (seen) continue
 
-    // Fetch CSS to extract woff2 URL
-    const cssRes = await fetch(
-      `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font.family)}`,
-      { headers: { 'User-Agent': 'Mozilla/5.0' } }
-    )
-    const css = await cssRes.text()
-    const match = css.match(/url\((https:\/\/fonts\.gstatic\.com[^)]+\.(?:woff2|ttf))\)/)
-    if (!match) continue
+    const fontFileUrl = font.files.regular || font.files[Object.keys(font.files)[0]]
 
     results.push({
       id: font.family.toLowerCase().replace(/\s+/g, '-'),
@@ -32,7 +25,7 @@ export async function discoverGoogleFonts(): Promise<FontItem[]> {
       category: mapCategory(font.category),
       designer: font.subsets?.join(', ') ?? 'Google',
       source: 'google_fonts',
-      fontFileUrl: match[1],
+      fontFileUrl: fontFileUrl,
       previewText: 'The quick brown fox',
       downloadUrl: `https://fonts.google.com/specimen/${encodeURIComponent(font.family)}`,
     })
