@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, X, RefreshCw, Type, Palette, ArrowRight, ArrowLeft, Maximize2, Zap, LayoutGrid } from 'lucide-react'
+import { Check, X, RefreshCw, Type, Palette, ArrowRight, ArrowLeft, Maximize2, Zap, LayoutGrid, Trash2 } from 'lucide-react'
 import { Post } from '@/types'
 
 export function DashboardUI({ 
@@ -10,13 +10,15 @@ export function DashboardUI({
   initialPublished,
   runPipelineAction,
   publishPostAction,
-  rejectPostAction
+  rejectPostAction,
+  deleteSlideAction
 }: {
   initialPending: Post[]
   initialPublished: Post[]
   runPipelineAction: (template: string) => Promise<void>
   publishPostAction: (postId: string, formData: FormData) => Promise<void>
   rejectPostAction: (postId: string, formData: FormData) => Promise<void>
+  deleteSlideAction: (postId: string, slideIndex: number) => Promise<{ error?: string, success?: boolean }>
 }) {
   const [isPending, startTransition] = useTransition()
   
@@ -47,6 +49,15 @@ export function DashboardUI({
     const formData = new FormData()
     startTransition(async () => {
       await rejectPostAction(postId, formData)
+    })
+  }
+
+  const handleDeleteSlide = (postId: string, slideIndex: number) => {
+    startTransition(async () => {
+      const res = await deleteSlideAction(postId, slideIndex)
+      if (res.error) {
+        alert(res.error)
+      }
     })
   }
 
@@ -402,6 +413,34 @@ export function DashboardUI({
                           }}>
                             {String(idx + 1).padStart(2, '0')}
                           </div>
+
+                          {currentPost.slideUrls.length > 4 && (
+                            <button
+                              onClick={() => handleDeleteSlide(currentPost.id, idx)}
+                              disabled={isPending}
+                              title="Delete Slide"
+                              style={{
+                                position: 'absolute',
+                                top: '16px',
+                                right: '16px',
+                                backgroundColor: 'rgba(0,0,0,0.6)',
+                                color: '#ff4444',
+                                border: '1px solid rgba(255,68,68,0.5)',
+                                borderRadius: '50%',
+                                width: '40px',
+                                height: '40px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                zIndex: 20,
+                                transition: 'all 0.2s',
+                              }}
+                              className="image-hover-zoom"
+                            >
+                              <Trash2 size={20} />
+                            </button>
+                          )}
                         </div>
                       )
                     })}

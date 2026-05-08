@@ -18,9 +18,26 @@ export async function discoverColorHunt(): Promise<PaletteItem[]> {
     if (seen) continue
 
     const colors = [0, 6, 12, 18].map(i => '#' + code.slice(i, i + 6))
+
+    // Fetch color names
+    let colorNames = colors
+    try {
+      const cleanHexes = colors.map(c => c.replace('#', '')).join(',')
+      const nameRes = await fetch(`https://api.color.pizza/v1/${cleanHexes}`)
+      if (nameRes.ok) {
+        const nameData = await nameRes.json()
+        if (nameData.colors && nameData.colors.length === colors.length) {
+          colorNames = nameData.colors.map((c: any) => c.name)
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch color names for palette', e)
+    }
+
     results.push({
       id: code,
       colors,
+      colorNames,
       source: 'colorhunt',
       sourceUrl: `https://colorhunt.co/palette/${code}`,
       likes: item.likes ?? 0,

@@ -51,7 +51,7 @@ export function PaletteSlide({ palette }: { palette: PaletteItem }) {
         ))}
       </div>
 
-      {/* Hex codes row */}
+      {/* Name and Hex codes row */}
       <div
         style={{
           display: 'flex',
@@ -59,20 +59,44 @@ export function PaletteSlide({ palette }: { palette: PaletteItem }) {
           padding: '24px 40px',
           gap: 32,
           flexWrap: 'wrap',
+          justifyContent: 'center',
         }}
       >
         {palette.colors.map((color, i) => (
-          <span
+          <div
             key={i}
             style={{
-              fontSize: 22,
-              fontWeight: 700,
-              color: color,
-              fontFamily: 'sans-serif',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 8,
+              width: blockWidth - 32,
             }}
           >
-            {color.toUpperCase()}
-          </span>
+            <span
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                color: '#333',
+                fontFamily: 'sans-serif',
+                textAlign: 'center',
+                lineHeight: 1.1,
+                textTransform: 'capitalize'
+              }}
+            >
+              {palette.colorNames && palette.colorNames[i] ? palette.colorNames[i] : color.toUpperCase()}
+            </span>
+            <span
+              style={{
+                fontSize: 18,
+                fontWeight: 500,
+                color: color,
+                fontFamily: 'sans-serif',
+              }}
+            >
+              {color.toUpperCase()}
+            </span>
+          </div>
         ))}
       </div>
 

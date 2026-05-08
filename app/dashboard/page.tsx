@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { env } from '@/lib/env'
 import { DashboardUI } from './client'
+import { del } from '@vercel/blob'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,13 +26,70 @@ async function publishPostAction(postId: string, formData: FormData) {
     igMediaId,
     publishedAt: new Date().toISOString(),
   })
+
+  // Delete blobs after publishing since IG downloads them
+  for (const url of post.slideUrls) {
+    try {
+      await del(url)
+    } catch (e) {
+      console.error(`Failed to delete published blob: ${url}`, e)
+    }
+  }
+
   revalidatePath('/dashboard')
 }
 
 async function rejectPostAction(postId: string, formData: FormData) {
   'use server'
+  const posts = await getPosts('pending')
+  const post = posts.find(p => p.id === postId)
+
   await updatePost(postId, { status: 'rejected' })
+
+  if (post && post.slideUrls) {
+    for (const url of post.slideUrls) {
+      try {
+        await del(url)
+      } catch (e) {
+        console.error(`Failed to delete rejected blob: ${url}`, e)
+      }
+    }
+  }
+
   revalidatePath('/dashboard')
+}
+
+async function deleteSlideAction(postId: string, slideIndex: number) {
+  'use server'
+  const posts = await getPosts('pending')
+  const post = posts.find(p => p.id === postId)
+  if (!post) {
+    console.error(`deleteSlideAction: post not found for id=${postId}`)
+    return { error: 'Post not found' }
+  }
+
+  if (post.slideUrls.length <= 4) {
+    return { error: 'Cannot delete slide. Minimum 4 slides required.' }
+  }
+
+  const urlToDelete = post.slideUrls[slideIndex]
+  if (!urlToDelete) {
+    return { error: 'Slide not found at index' }
+  }
+
+  try {
+    await del(urlToDelete)
+  } catch (error) {
+    console.error('Failed to delete blob from Vercel:', error)
+    // Continue even if blob deletion fails, maybe it was already deleted
+  }
+
+  const newSlideUrls = [...post.slideUrls]
+  newSlideUrls.splice(slideIndex, 1)
+
+  await updatePost(postId, { slideUrls: newSlideUrls })
+  revalidatePath('/dashboard')
+  return { success: true }
 }
 
 async function runPipelineAction(template: string) {
@@ -65,6 +123,7 @@ export default async function DashboardPage() {
       runPipelineAction={runPipelineAction}
       publishPostAction={publishPostAction}
       rejectPostAction={rejectPostAction}
+      deleteSlideAction={deleteSlideAction}
     />
   )
 }

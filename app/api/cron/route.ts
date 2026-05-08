@@ -232,6 +232,9 @@ export async function GET(req: NextRequest) {
       createdAt: new Date().toISOString(),
     }
     await addPost(post)
+    for (const duotone of allDuotones) {
+      await addSeen('duotone', `${duotone.hex1}-${duotone.hex2}`)
+    }
     postsCreated.push(postId)
   }
 
