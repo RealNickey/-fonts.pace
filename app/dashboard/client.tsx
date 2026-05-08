@@ -22,52 +22,134 @@ export function DashboardUI({
 }) {
   const [isPending, startTransition] = useTransition()
   
-  // Filtering
-  const [filter, setFilter] = useState('all')
   const [currentIndex, setCurrentIndex] = useState(0)
   
   // Pipeline template selection
-  const [pipelineTemplate, setPipelineTemplate] = useState('all')
+  const [pipelineTemplate, setPipelineTemplate] = useState('fonts')
 
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
-  const handleRunPipeline = () => {
-    startTransition(async () => {
-      await runPipelineAction(pipelineTemplate)
-    })
+  // Preview Dialog State
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false)
+  const [previewData, setPreviewData] = useState<{ first: string, mid: string, last: string } | null>(null)
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+
+  const handleShowPreview = async () => {
+    if (pipelineTemplate === 'all') {
+      // If 'all' is selected, skip preview and just run it or force user to select one.
+      // Let's force them to select a specific one for preview.
+      alert('Please select a specific template (FONTS, PALETTES, DUOTONE) to preview.')
+      return
+    }
+
+    setShowPreviewDialog(true)
+    setPreviewData(null)
+    setIsLoadingPreview(true)
+
+    try {
+      const res = await fetch(`/api/preview?template=${pipelineTemplate}`)
+      if (res.ok) {
+        const data = await res.json()
+        setPreviewData(data)
+      } else {
+        alert('Failed to load preview.')
+        setShowPreviewDialog(false)
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Failed to load preview.')
+      setShowPreviewDialog(false)
+    } finally {
+      setIsLoadingPreview(false)
+    }
+  }
+
+  const handleConfirmRun = () => {
+    setShowPreviewDialog(false)
+    // Run async, don't wait for it
+    runPipelineAction(pipelineTemplate).catch(console.error)
   }
 
   const handlePublish = (postId: string, e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    startTransition(async () => {
-      await publishPostAction(postId, formData)
-    })
+
+    // Optimistic UI update
+    setLocalPending(prev => prev.filter(p => p.id !== postId))
+
+    // Async background request
+    publishPostAction(postId, formData).catch(console.error)
   }
 
   const handleReject = (postId: string) => {
     const formData = new FormData()
-    startTransition(async () => {
-      await rejectPostAction(postId, formData)
-    })
+
+    // Optimistic UI update
+    setLocalPending(prev => prev.filter(p => p.id !== postId))
+
+    // Async background request
+    rejectPostAction(postId, formData).catch(console.error)
   }
 
   const handleDeleteSlide = (postId: string, slideIndex: number) => {
-    startTransition(async () => {
-      const res = await deleteSlideAction(postId, slideIndex)
-      if (res.error) {
-        alert(res.error)
+    // Optimistic UI update
+    setLocalPending(prev => prev.map(p => {
+      if (p.id === postId) {
+        const newUrls = [...p.slideUrls]
+        newUrls.splice(slideIndex, 1)
+        return { ...p, slideUrls: newUrls }
       }
-    })
+      return p
+    }))
+
+    // Async background request
+    deleteSlideAction(postId, slideIndex).then(res => {
+      if (res && res.error) {
+        alert(res.error)
+        // Ideally revert local state here, but simple reload or resync works too
+      }
+    }).catch(console.error)
   }
 
-  const filteredPosts = useMemo(() => {
-    return initialPending.filter(post => filter === 'all' || post.type === filter)
-  }, [initialPending, filter])
+  const [localPending, setLocalPending] = useState<Post[]>(initialPending)
 
-  // Ensure currentIndex stays valid when filter changes
+  // Make sure to sync if initialPending changes from server (though optimistic should handle it)
+  useMemo(() => {
+    setLocalPending(initialPending)
+  }, [initialPending])
+
+  const filteredPosts = localPending
+
+  // Ensure currentIndex stays valid when posts change
   if (currentIndex >= filteredPosts.length && filteredPosts.length > 0) {
     setCurrentIndex(0)
+  }
+
+  // Horizontal Drag to Scroll State
+  const [isDragging, setIsDragging] = useState(false)
+  const [startX, setStartX] = useState(0)
+  const [scrollLeft, setScrollLeft] = useState(0)
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true)
+    setStartX(e.pageX - e.currentTarget.offsetLeft)
+    setScrollLeft(e.currentTarget.scrollLeft)
+  }
+
+  const handleMouseLeave = () => {
+    setIsDragging(false)
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging) return
+    e.preventDefault()
+    const x = e.pageX - e.currentTarget.offsetLeft
+    const walk = (x - startX) * 2 // Scroll-fast multiplier
+    e.currentTarget.scrollLeft = scrollLeft - walk
   }
 
   const currentPost = filteredPosts[currentIndex]
@@ -123,6 +205,79 @@ export function DashboardUI({
           z-index: 10;
         }
       `}} />
+
+      {/* Generation Preview Dialog */}
+      <AnimatePresence>
+        {showPreviewDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed',
+              top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.95)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              padding: '24px'
+            }}
+          >
+            <div style={{
+              backgroundColor: '#111',
+              border: '1px solid #333',
+              borderRadius: '12px',
+              padding: '32px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '24px',
+              maxWidth: '90vw',
+              maxHeight: '90vh'
+            }}>
+              <h2 className="industrial-text" style={{ margin: 0, fontSize: '32px', color: '#FFD60A' }}>PREVIEW: {pipelineTemplate.toUpperCase()}</h2>
+
+              <div style={{ display: 'flex', gap: '24px', overflowX: 'auto', paddingBottom: '16px' }}>
+                {isLoadingPreview ? (
+                  <div className="tech-text" style={{ color: '#888', padding: '100px', textAlign: 'center', width: '100%' }}>
+                    GENERATING REALTIME SATORI PREVIEW...
+                  </div>
+                ) : previewData ? (
+                  <>
+                    <img src={previewData.first} alt="First Slide" style={{ height: '400px', objectFit: 'contain', border: '1px solid #333' }} />
+                    <img src={previewData.mid} alt="Content Slide" style={{ height: '400px', objectFit: 'contain', border: '1px solid #333' }} />
+                    <img src={previewData.last} alt="Last Slide" style={{ height: '400px', objectFit: 'contain', border: '1px solid #333' }} />
+                  </>
+                ) : null}
+              </div>
+
+              <div style={{ display: 'flex', gap: '16px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowPreviewDialog(false)}
+                  className="brutalist-button tech-text"
+                  style={{
+                    padding: '12px 24px', backgroundColor: '#333', color: '#fff',
+                    border: 'none', cursor: 'pointer'
+                  }}
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleConfirmRun}
+                  disabled={isLoadingPreview}
+                  className="brutalist-button tech-text"
+                  style={{
+                    padding: '12px 24px', backgroundColor: '#FFD60A', color: '#000',
+                    border: 'none', cursor: 'pointer', fontWeight: 'bold'
+                  }}
+                >
+                  CONFIRM & GENERATE
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Lightbox */}
       <AnimatePresence>
@@ -180,29 +335,6 @@ export function DashboardUI({
           </div>
 
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <div style={{ display: 'flex', border: '1px solid #333', borderRadius: '4px', overflow: 'hidden' }}>
-              {(['all', 'fonts', 'palettes', 'duotone'] as const).map(f => (
-                <button
-                  key={f}
-                  onClick={() => { setFilter(f); setCurrentIndex(0); }}
-                  className="tech-text"
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: filter === f ? '#FFD60A' : 'transparent',
-                    color: filter === f ? '#000' : '#888',
-                    border: 'none',
-                    borderRight: f !== 'duotone' ? '1px solid #333' : 'none',
-                    textTransform: 'uppercase',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ width: '1px', height: '32px', backgroundColor: '#333' }} />
-
             <div style={{ display: 'flex', gap: '8px' }}>
               <select 
                 value={pipelineTemplate}
@@ -218,14 +350,13 @@ export function DashboardUI({
                   textTransform: 'uppercase'
                 }}
               >
-                <option value="all">ALL TMPL</option>
                 <option value="fonts">FONTS</option>
                 <option value="palettes">PALETTES</option>
                 <option value="duotone">DUOTONE</option>
               </select>
               
               <button
-                onClick={handleRunPipeline}
+                onClick={handleShowPreview}
                 disabled={isPending}
                 className="tech-text"
                 style={{
@@ -372,10 +503,18 @@ export function DashboardUI({
               </div>
 
               {/* Right Column: Imagery Gallery */}
-              <div className="hide-scrollbar" style={{ 
-                flex: 1, backgroundColor: '#050505', borderRadius: '8px', border: '1px solid #222',
-                overflowX: 'auto', display: 'flex', alignItems: 'center', padding: '40px', gap: '40px'
-              }}>
+              <div
+                className="hide-scrollbar"
+                style={{
+                  flex: 1, backgroundColor: '#050505', borderRadius: '8px', border: '1px solid #222',
+                  overflowX: 'auto', display: 'flex', alignItems: 'center', padding: '40px', gap: '40px',
+                  cursor: isDragging ? 'grabbing' : 'grab'
+                }}
+                onMouseDown={handleMouseDown}
+                onMouseLeave={handleMouseLeave}
+                onMouseUp={handleMouseUp}
+                onMouseMove={handleMouseMove}
+              >
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={currentPost.id}
