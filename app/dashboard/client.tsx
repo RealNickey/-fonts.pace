@@ -121,8 +121,10 @@ export function DashboardUI({
   const filteredPosts = localPending
 
   // Ensure currentIndex stays valid when posts change
-  if (currentIndex >= filteredPosts.length && filteredPosts.length > 0) {
-    setCurrentIndex(0)
+  if (filteredPosts.length === 0) {
+    if (currentIndex !== 0) setCurrentIndex(0)
+  } else if (currentIndex >= filteredPosts.length) {
+    setCurrentIndex(filteredPosts.length - 1)
   }
 
   // Horizontal Drag to Scroll State
@@ -397,81 +399,87 @@ export function DashboardUI({
                 padding: '24px', borderRadius: '8px', border: '1px solid #222'
               }}>
                 <AnimatePresence mode="wait">
-                  <motion.div 
-                    key={currentPost.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ duration: 0.3 }}
-                    style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
-                  >
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                      <span className="tech-text" style={{ 
-                        padding: '4px 8px', backgroundColor: currentPost.type === 'fonts' ? '#0033ff' : currentPost.type === 'palettes' ? '#ff0055' : '#ffaa00',
-                        color: '#fff', fontSize: '11px', letterSpacing: '0.1em'
+                  {currentPost ? (
+                    <motion.div 
+                      key={currentPost.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.3 }}
+                      style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+                    >
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                        <span className="tech-text" style={{ 
+                          padding: '4px 8px', backgroundColor: currentPost.type === 'fonts' ? '#0033ff' : currentPost.type === 'palettes' ? '#ff0055' : '#ffaa00',
+                          color: '#fff', fontSize: '11px', letterSpacing: '0.1em'
+                        }}>
+                          [{currentPost.type.toUpperCase()}]
+                        </span>
+                      </div>
+
+                      <h2 className="industrial-text" style={{ 
+                        fontSize: '32px', margin: '0 0 24px', lineHeight: 1.1, color: '#e5e5e5' 
                       }}>
-                        [{currentPost.type.toUpperCase()}]
-                      </span>
+                        {currentPost.title}
+                      </h2>
+
+                      <form id={`publish-form-${currentPost.id}`} onSubmit={(e) => handlePublish(currentPost.id, e)} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <label className="tech-text" style={{ fontSize: '12px', color: '#888', marginBottom: '8px', display: 'block' }}>CAPTION DATA</label>
+                        <textarea
+                          name="caption"
+                          defaultValue={currentPost.caption}
+                          className="tech-text hide-scrollbar"
+                          style={{
+                            flex: 1,
+                            width: '100%',
+                            padding: '16px',
+                            backgroundColor: '#0a0a0a',
+                            border: '1px solid #333',
+                            color: '#ccc',
+                            fontSize: '13px',
+                            lineHeight: 1.5,
+                            resize: 'none',
+                            outline: 'none',
+                            borderRadius: '4px'
+                          }}
+                        />
+                      </form>
+
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                        <button
+                          type="submit"
+                          form={`publish-form-${currentPost.id}`}
+                          disabled={isPending}
+                          className="brutalist-button industrial-text"
+                          style={{
+                            flex: 1, padding: '16px 0', backgroundColor: '#FFD60A',
+                            color: '#000', border: '1px solid #000', cursor: 'pointer',
+                            fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                          }}
+                        >
+                          <Check size={20} strokeWidth={3} /> APPROVE
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleReject(currentPost.id)}
+                          disabled={isPending}
+                          className="brutalist-button industrial-text"
+                          style={{
+                            padding: '16px 24px', backgroundColor: '#1a1a1a',
+                            color: '#ff4444', border: '1px solid #ff4444', cursor: 'pointer',
+                            fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                          }}
+                        >
+                          <X size={20} strokeWidth={3} />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <p className="tech-text" style={{ color: '#666' }}>NO POST DATA AVAILABLE.</p>
                     </div>
-
-                    <h2 className="industrial-text" style={{ 
-                      fontSize: '32px', margin: '0 0 24px', lineHeight: 1.1, color: '#e5e5e5' 
-                    }}>
-                      {currentPost.title}
-                    </h2>
-
-                    <form id={`publish-form-${currentPost.id}`} onSubmit={(e) => handlePublish(currentPost.id, e)} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                      <label className="tech-text" style={{ fontSize: '12px', color: '#888', marginBottom: '8px', display: 'block' }}>CAPTION DATA</label>
-                      <textarea
-                        name="caption"
-                        defaultValue={currentPost.caption}
-                        className="tech-text hide-scrollbar"
-                        style={{
-                          flex: 1,
-                          width: '100%',
-                          padding: '16px',
-                          backgroundColor: '#0a0a0a',
-                          border: '1px solid #333',
-                          color: '#ccc',
-                          fontSize: '13px',
-                          lineHeight: 1.5,
-                          resize: 'none',
-                          outline: 'none',
-                          borderRadius: '4px'
-                        }}
-                      />
-                    </form>
-
-                    <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-                      <button
-                        type="submit"
-                        form={`publish-form-${currentPost.id}`}
-                        disabled={isPending}
-                        className="brutalist-button industrial-text"
-                        style={{
-                          flex: 1, padding: '16px 0', backgroundColor: '#FFD60A',
-                          color: '#000', border: '1px solid #000', cursor: 'pointer',
-                          fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                        }}
-                      >
-                        <Check size={20} strokeWidth={3} /> APPROVE
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleReject(currentPost.id)}
-                        disabled={isPending}
-                        className="brutalist-button industrial-text"
-                        style={{
-                          padding: '16px 24px', backgroundColor: '#1a1a1a',
-                          color: '#ff4444', border: '1px solid #ff4444', cursor: 'pointer',
-                          fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                        }}
-                      >
-                        <X size={20} strokeWidth={3} />
-                      </button>
-                    </div>
-                  </motion.div>
+                  )}
                 </AnimatePresence>
 
                 {/* Pagination Controls */}
