@@ -17,13 +17,13 @@ export async function discoverGoogleFonts(): Promise<FontItem[]> {
     const seen = await isSeen('fonts', font.family)
     if (seen) continue
 
-    // Fetch CSS to extract woff2 URL
+    // Fetch CSS to extract ttf URL for Satori compatibility
     const cssRes = await fetch(
       `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font.family)}`,
-      { headers: { 'User-Agent': 'Mozilla/5.0' } }
+      { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_8; de-at) AppleWebKit/533.21.1 (KHTML, like Gecko) Version/5.0.5 Safari/533.21.1' } }
     )
     const css = await cssRes.text()
-    const match = css.match(/url\((https:\/\/fonts\.gstatic\.com[^)]+\.(?:woff2|ttf))\)/)
+    const match = css.match(/url\((https:\/\/fonts\.gstatic\.com[^)]+\.ttf)\)/)
     if (!match) continue
 
     results.push({
