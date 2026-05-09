@@ -35,7 +35,7 @@ export function FontSlide({ font }: { font: FontItem }) {
             fontFamily: font.name,
             fontSize: 450,
             color: '#fbf7e2',
-            lineHeight: 1,
+            lineHeight: 1.2,
             textAlign: 'center',
             display: 'flex',
           }}
@@ -58,7 +58,7 @@ export function FontSlide({ font }: { font: FontItem }) {
             fontFamily: font.name,
             fontSize: titleSize,
             color: '#fbf7e2',
-            lineHeight: 1,
+            lineHeight: 1.2,
             textAlign: 'center',
             display: 'flex',
           }}
@@ -73,6 +73,7 @@ export function FontSlide({ font }: { font: FontItem }) {
             fontSize: 48,
             color: '#fbf7e2',
             display: 'flex',
+            fontFamily: 'Inter',
           }}
         >
           {env.brandHandle}

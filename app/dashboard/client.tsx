@@ -11,7 +11,8 @@ export function DashboardUI({
   runPipelineAction,
   publishPostAction,
   rejectPostAction,
-  deleteSlideAction
+  deleteSlideAction,
+  flushDatabaseAction
 }: {
   initialPending: Post[]
   initialPublished: Post[]
@@ -19,6 +20,7 @@ export function DashboardUI({
   publishPostAction: (postId: string, formData: FormData) => Promise<void>
   rejectPostAction: (postId: string, formData: FormData) => Promise<void>
   deleteSlideAction: (postId: string, slideIndex: number) => Promise<{ error?: string, success?: boolean }>
+  flushDatabaseAction: () => Promise<void>
 }) {
   const [isPending, startTransition] = useTransition()
   
@@ -383,6 +385,25 @@ export function DashboardUI({
                   <Zap size={16} fill={isPending ? "#FFD60A" : "none"} />
                 </motion.div>
                 {isPending ? 'EXEC...' : 'RUN'}
+              </button>
+
+              <button
+                onClick={async () => {
+                  if (confirm('Are you sure you want to flush the KV database? This action cannot be undone.')) {
+                    await flushDatabaseAction()
+                    alert('Database flushed.')
+                  }
+                }}
+                className="tech-text"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '8px 24px', backgroundColor: '#ff0055', color: '#fff',
+                  border: 'none', borderRadius: '4px', cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                <Trash2 size={16} />
+                FLUSH KV
               </button>
             </div>
           </div>

@@ -6,8 +6,15 @@ import { headers } from 'next/headers'
 import { env } from '@/lib/env'
 import { DashboardUI } from './client'
 import { del } from '@vercel/blob'
+import { kv } from '@/lib/kv'
 
 export const dynamic = 'force-dynamic'
+
+async function flushDatabaseAction() {
+  'use server'
+  await kv.flushall()
+  revalidatePath('/dashboard')
+}
 
 async function publishPostAction(postId: string, formData: FormData) {
   'use server'
@@ -124,6 +131,7 @@ export default async function DashboardPage() {
       publishPostAction={publishPostAction}
       rejectPostAction={rejectPostAction}
       deleteSlideAction={deleteSlideAction}
+      flushDatabaseAction={flushDatabaseAction}
     />
   )
 }

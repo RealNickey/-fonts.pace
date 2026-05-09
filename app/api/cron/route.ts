@@ -65,10 +65,17 @@ export async function GET(req: NextRequest) {
     console.log(`[cron] Discovery results — Google: ${googleFonts.length}, Fontshare: ${fontshareFonts.length}`)
 
     const candidates = [...googleFonts, ...fontshareFonts]
+    const baseNames = new Set<string>()
+    
     for (const font of candidates) {
+      // Get base name (first word) to prevent variations of the same font
+      const baseName = font.name.split(' ')[0].toLowerCase()
+      if (baseNames.has(baseName)) continue
+
       const data = await fetchRenderFont(font.fontFileUrl)
       if (data) {
         renderableFonts.push({ font, data })
+        baseNames.add(baseName)
       } else {
         console.log(`[cron] Skipped font (not renderable): ${font.name} [${font.fontFileUrl}]`)
       }
@@ -92,8 +99,11 @@ export async function GET(req: NextRequest) {
     const title = `${renderableFonts.length} Fonts Worth Knowing`
     const slideUrls: string[] = []
 
+    const jaroFontData = await loadJaroFont()
+    const jaroFonts = jaroFontData ? [{ name: 'Jaro', data: jaroFontData, weight: 400 as const }] : []
+
     // Fetch font files and render slides
-    const titleBuffer = await renderSlide(React.createElement(TitleCard, { title }), [], 1350)
+    const titleBuffer = await renderSlide(React.createElement(TitleCard, { title }), jaroFonts, 1350)
     slideUrls.push(await uploadSlide(titleBuffer, `slides/${postId}/0.png`))
 
     for (let i = 0; i < renderableFonts.length; i++) {
@@ -108,7 +118,7 @@ export async function GET(req: NextRequest) {
       slideUrls.push(await uploadSlide(buffer, `slides/${postId}/${i + 1}.png`))
     }
 
-    const ctaBuffer = await renderSlide(React.createElement(CTACard), [], 1350)
+    const ctaBuffer = await renderSlide(React.createElement(CTACard), jaroFonts, 1350)
     slideUrls.push(await uploadSlide(ctaBuffer, `slides/${postId}/${renderableFonts.length + 1}.png`))
 
     const caption = `5 fonts you need to know 🖋️\n\n${renderableFonts.map(f => f.font.name).join(' · ')}\n\n#typography #fonts #design #uidesign #typeface #graphicdesign #fontoftheday #designinspiration`
