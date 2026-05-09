@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { renderSlide } from '@/lib/render'
+import { renderSlide, fetchRenderFont } from '@/lib/render'
 import { TitleCard } from '@/lib/slides/title-card'
 import { FontSlide } from '@/lib/slides/font-slide'
-import { PaletteSlide } from '@/lib/slides/palette-slide'
 import { CTACard } from '@/lib/slides/cta-card'
 import { DuotoneSlide } from '@/lib/slides/duotone-slide'
 import { DuotoneTitleCard } from '@/lib/slides/duotone-title-card'
@@ -20,8 +19,8 @@ async function loadJaroFont(): Promise<ArrayBuffer | undefined> {
     const css = await cssRes.text()
     const match = css.match(/url\((https:\/\/fonts\.gstatic\.com[^)]+\.(?:woff2|ttf))\)/)
     if (match) {
-      const fontRes = await fetch(match[1])
-      return await fontRes.arrayBuffer()
+      // Use fetchRenderFont so WOFF2 files get decompressed to TTF for Satori
+      return await fetchRenderFont(match[1])
     }
   } catch (error) {
     console.warn('Failed to fetch Jaro font', error)
@@ -51,24 +50,9 @@ export async function GET(req: NextRequest) {
         downloadUrl: ''
       }
 
-      firstBuffer = await renderSlide(React.createElement(TitleCard, { title }))
-      midBuffer = await renderSlide(React.createElement(FontSlide, { font: dummyFont }))
-      lastBuffer = await renderSlide(React.createElement(CTACard))
-    }
-    else if (template === 'palettes') {
-      const title = '5 Color Palettes to Steal'
-      const dummyPalette = {
-        id: 'dummy',
-        colors: ['#FFD60A', '#FF9F1C', '#2EC4B6', '#E71D36'],
-        colorNames: ['Cyber Yellow', 'Orange Peel', 'Light Sea Green', 'Rose Madder'],
-        source: 'colorhunt' as const,
-        sourceUrl: '',
-        likes: 1200
-      }
-
-      firstBuffer = await renderSlide(React.createElement(TitleCard, { title }))
-      midBuffer = await renderSlide(React.createElement(PaletteSlide, { palette: dummyPalette }))
-      lastBuffer = await renderSlide(React.createElement(CTACard))
+      firstBuffer = await renderSlide(React.createElement(TitleCard, { title }), [], 1350)
+      midBuffer = await renderSlide(React.createElement(FontSlide, { font: dummyFont }), [], 1350)
+      lastBuffer = await renderSlide(React.createElement(CTACard), [], 1350)
     }
     else { // duotone
       const title = '5 Duotone Palettes'

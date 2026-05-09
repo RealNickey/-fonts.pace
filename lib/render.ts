@@ -4,12 +4,74 @@ import { put } from '@vercel/blob'
 import { ReactNode } from 'react'
 import fs from 'fs'
 import path from 'path'
+import { decompress } from 'wawoff2'
+import dns from 'dns'
+
+dns.setDefaultResultOrder('ipv4first')
 
 export type SatoriFont = {
   name: string
   data: ArrayBuffer
   weight?: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900
   style?: 'normal' | 'italic'
+}
+
+const ALLOWED_FONT_HOSTS = ['fonts.gstatic.com', 'api.fontshare.com', 'cdn.fontshare.com']
+const fontBufferCache = new Map<string, ArrayBuffer>()
+
+export function getSafeFontUrl(rawUrl: string): URL | null {
+  try {
+    const parsed = new URL(rawUrl)
+    if (
+      parsed.protocol === 'https:' &&
+      ALLOWED_FONT_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`))
+    ) {
+      return parsed
+    }
+  } catch {}
+  return null
+}
+
+export async function fetchRenderFont(fontUrl: string): Promise<ArrayBuffer | undefined> {
+  const safeUrl = getSafeFontUrl(fontUrl)
+  if (!safeUrl) return undefined
+
+  const urlStr = safeUrl.toString()
+  if (fontBufferCache.has(urlStr)) return fontBufferCache.get(urlStr)
+  
+  try {
+    const res = await fetch(urlStr)
+    if (!res.ok) return undefined
+    
+    const arrayBuffer = await res.arrayBuffer()
+    
+    // Check if WOFF2 (signature 'wOF2') — decompress to TTF for Satori
+    const view = new DataView(arrayBuffer)
+    if (view.byteLength >= 4) {
+      const magic = view.getUint32(0)
+      if (magic === 0x774F4632) { // 'wOF2'
+        try {
+          console.log(`[render] Decompressing WOFF2: ${fontUrl}`)
+          const ttfBuffer = await decompress(Buffer.from(arrayBuffer))
+          const decompressed = ttfBuffer.buffer.slice(
+            ttfBuffer.byteOffset,
+            ttfBuffer.byteOffset + ttfBuffer.byteLength
+          ) as ArrayBuffer
+          fontBufferCache.set(urlStr, decompressed)
+          return decompressed
+        } catch (err) {
+          console.warn(`[render] Failed to decompress WOFF2, skipping: ${fontUrl}`, err)
+          return undefined
+        }
+      }
+    }
+    
+    fontBufferCache.set(urlStr, arrayBuffer)
+    return arrayBuffer
+  } catch (error) {
+    console.error(`Failed to fetch font: ${fontUrl}`, error)
+    return undefined
+  }
 }
 
 let defaultFontData: ArrayBuffer | null = null;

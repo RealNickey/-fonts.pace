@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, X, RefreshCw, Type, Palette, ArrowRight, ArrowLeft, Maximize2, Zap, LayoutGrid, Trash2 } from 'lucide-react'
 import { Post } from '@/types'
@@ -66,8 +66,15 @@ export function DashboardUI({
 
   const handleConfirmRun = () => {
     setShowPreviewDialog(false)
-    // Run async, don't wait for it
-    runPipelineAction(pipelineTemplate).catch(console.error)
+    // Use startTransition so isPending flag activates, giving visual feedback
+    startTransition(async () => {
+      try {
+        await runPipelineAction(pipelineTemplate)
+      } catch (err) {
+        console.error('Pipeline failed:', err)
+        alert('Pipeline failed. Check the console for details.')
+      }
+    })
   }
 
   const handlePublish = (postId: string, e: React.FormEvent<HTMLFormElement>) => {
@@ -120,12 +127,17 @@ export function DashboardUI({
 
   const filteredPosts = localPending
 
-  // Ensure currentIndex stays valid when posts change
-  if (filteredPosts.length === 0) {
-    if (currentIndex !== 0) setCurrentIndex(0)
-  } else if (currentIndex >= filteredPosts.length) {
-    setCurrentIndex(filteredPosts.length - 1)
-  }
+  // Compute a safe index that is always in-bounds — never mutate state during render
+  const safeIndex = filteredPosts.length === 0
+    ? 0
+    : Math.min(currentIndex, filteredPosts.length - 1)
+
+  // Sync currentIndex to safeIndex in an effect (not during render)
+  useEffect(() => {
+    if (currentIndex !== safeIndex) {
+      setCurrentIndex(safeIndex)
+    }
+  }, [currentIndex, safeIndex])
 
   // Horizontal Drag to Scroll State
   const [isDragging, setIsDragging] = useState(false)
@@ -154,7 +166,7 @@ export function DashboardUI({
     e.currentTarget.scrollLeft = scrollLeft - walk
   }
 
-  const currentPost = filteredPosts[currentIndex]
+  const currentPost = filteredPosts[safeIndex]
 
   const nextPost = () => setCurrentIndex(prev => Math.min(prev + 1, filteredPosts.length - 1))
   const prevPost = () => setCurrentIndex(prev => Math.max(prev - 1, 0))
@@ -353,7 +365,6 @@ export function DashboardUI({
                 }}
               >
                 <option value="fonts">FONTS</option>
-                <option value="palettes">PALETTES</option>
                 <option value="duotone">DUOTONE</option>
               </select>
               
@@ -524,16 +535,17 @@ export function DashboardUI({
                 onMouseMove={handleMouseMove}
               >
                 <AnimatePresence mode="wait">
-                  <motion.div
-                    key={currentPost.id}
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.98 }}
-                    transition={{ duration: 0.3 }}
-                    style={{ display: 'flex', gap: '40px', minWidth: 'min-content', margin: 'auto' }}
-                  >
-                    {currentPost.slideUrls.map((url, idx) => {
-                      const imgUrl = `/api/blob?url=${encodeURIComponent(url)}`;
+                  {currentPost && currentPost.slideUrls && (
+                    <motion.div
+                      key={currentPost.id}
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={{ duration: 0.3 }}
+                      style={{ display: 'flex', gap: '40px', minWidth: 'min-content', margin: 'auto' }}
+                    >
+                      {currentPost.slideUrls.map((url, idx) => {
+                      const imgUrl = url;
                       return (
                         <div key={`${currentPost.id}-${idx}`} style={{ position: 'relative' }}>
                           <img
@@ -591,7 +603,8 @@ export function DashboardUI({
                         </div>
                       )
                     })}
-                  </motion.div>
+                    </motion.div>
+                  )}
                 </AnimatePresence>
               </div>
 

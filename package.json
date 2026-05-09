@@ -18,7 +18,8 @@
     "next": "^15.5.15",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "satori": "^0.26.0"
+    "satori": "^0.26.0",
+    "wawoff2": "^2.0.1"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.35",

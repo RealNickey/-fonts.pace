@@ -8,8 +8,8 @@ export function CTACard() {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        width: 1080,
-        height: 1080,
+        width: '100%',
+        height: '100%',
         backgroundColor: '#111111',
         justifyContent: 'center',
         alignItems: 'center',

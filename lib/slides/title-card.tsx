@@ -10,8 +10,8 @@ export function TitleCard({ title }: { title: string }) {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        width: 1080,
-        height: 1080,
+        width: '100%',
+        height: '100%',
         backgroundColor: '#ffffff',
         justifyContent: 'center',
         alignItems: 'center',

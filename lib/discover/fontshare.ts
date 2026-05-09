@@ -1,26 +1,37 @@
 import { FontItem } from '@/types'
 import { isSeen } from '@/lib/dedup'
+import dns from 'dns'
+
+dns.setDefaultResultOrder('ipv4first')
 
 export async function discoverFontshare(): Promise<FontItem[]> {
-  const res = await fetch('https://api.fontshare.com/v2/fonts?page=1&per_page=20')
-  if (!res.ok) throw new Error(`Fontshare API error: ${res.status}`)
-  const data = await res.json()
-  const fonts = data.fonts ?? []
+  // Fetch multiple pages so the seen-set doesn't exhaust all candidates.
+  // Fontshare v2 API: font file URL lives in styles[].file (protocol-relative //cdn.fontshare.com/…)
+  const pages = await Promise.allSettled([
+    fetch('https://api.fontshare.com/v2/fonts?page=1&per_page=50').then(r => r.ok ? r.json() : { fonts: [] }),
+    fetch('https://api.fontshare.com/v2/fonts?page=2&per_page=50').then(r => r.ok ? r.json() : { fonts: [] }),
+    fetch('https://api.fontshare.com/v2/fonts?page=3&per_page=50').then(r => r.ok ? r.json() : { fonts: [] }),
+  ])
+  const fonts = pages.flatMap(p => p.status === 'fulfilled' ? (p.value.fonts ?? []) : [])
 
   const results: FontItem[] = []
   for (const font of fonts) {
     const seen = await isSeen('fonts', font.slug)
     if (seen) continue
 
-    const fontFileUrl =
-      font.files?.variable?.url ?? font.files?.regular?.url ?? ''
-    if (!fontFileUrl) continue
+    // v2 API: file URL is in styles[].file (default style first)
+    // The URL is protocol-relative (//cdn.fontshare.com/...), prepend https:
+    const defaultStyle = font.styles?.find((s: any) => s.default) ?? font.styles?.[0]
+    const rawFileUrl: string | undefined = defaultStyle?.file
+    if (!rawFileUrl) continue
+
+    const fontFileUrl = rawFileUrl.startsWith('//') ? `https:${rawFileUrl}.woff2` : `${rawFileUrl}.woff2`
 
     results.push({
       id: font.slug,
       name: font.name,
       category: mapCategory(font.category?.slug ?? ''),
-      designer: font.designers?.[0]?.name ?? 'Fontshare',
+      designer: font.designers?.[0]?.name ?? font.publisher?.name ?? 'Fontshare',
       source: 'fontshare',
       fontFileUrl,
       previewText: 'The quick brown fox',

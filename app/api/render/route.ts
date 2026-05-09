@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { renderSlide, uploadSlide } from '@/lib/render'
+import { fetchRenderFont, renderSlide, uploadSlide } from '@/lib/render'
 import { TitleCard } from '@/lib/slides/title-card'
+import { FontTitleCard } from '@/lib/slides/font-title-card'
 import { FontSlide } from '@/lib/slides/font-slide'
 import { PaletteSlide } from '@/lib/slides/palette-slide'
 import { CTACard } from '@/lib/slides/cta-card'
+import { FontCTACard } from '@/lib/slides/font-cta-card'
 import { DuotoneSlide } from '@/lib/slides/duotone-slide'
 import { DuotoneTitleCard } from '@/lib/slides/duotone-title-card'
 import { DuotoneCTACard } from '@/lib/slides/duotone-cta-card'
@@ -12,30 +14,6 @@ import React from 'react'
 
 export const maxDuration = 60
 export const runtime = 'nodejs'
-
-const ALLOWED_FONT_HOSTS = [
-  'fonts.gstatic.com',
-  'api.fontshare.com',
-  'cdn.fontshare.com',
-]
-
-/**
- * Validates a font URL against the allowlist and returns a parsed URL object
- * if safe, or null otherwise. The caller must use the returned URL object
- * (not the original string) to prevent SSRF.
- */
-function getSafeFontUrl(rawUrl: string): URL | null {
-  try {
-    const parsed = new URL(rawUrl)
-    if (
-      parsed.protocol === 'https:' &&
-      ALLOWED_FONT_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`))
-    ) {
-      return parsed
-    }
-  } catch {}
-  return null
-}
 
 async function loadJaroFont(): Promise<ArrayBuffer | undefined> {
   try {
@@ -66,30 +44,23 @@ export async function POST(req: NextRequest) {
   else if (type === 'duotone') title = `${items.length} Duotone Palettes`
   
   const isDuotone = type === 'duotone'
-  const height = isDuotone ? 1350 : 1080
+  const isFonts = type === 'fonts'
+  const height = isDuotone || isFonts ? 1350 : 1080
   const seedDuotone = isDuotone ? (items?.[0] as DuotoneItem | undefined) : undefined
-  const jaroFontData = isDuotone ? await loadJaroFont() : undefined
+  const jaroFontData = isDuotone || isFonts ? await loadJaroFont() : undefined
   const jaroFonts = jaroFontData ? [{ name: 'Jaro', data: jaroFontData, weight: 400 as const }] : []
 
   const titleElement = isDuotone
     ? React.createElement(DuotoneTitleCard, { title, item: seedDuotone })
-    : React.createElement(TitleCard, { title })
-  const titleBuffer = await renderSlide(titleElement, isDuotone ? jaroFonts : [], height)
+    : isFonts ? React.createElement(FontTitleCard) : React.createElement(TitleCard, { title })
+  const titleBuffer = await renderSlide(titleElement, isDuotone || isFonts ? jaroFonts : [], height)
   slideUrls.push(await uploadSlide(titleBuffer, `slides/${postId}/0.png`))
 
   if (type === 'fonts') {
     for (let i = 0; i < items.length; i++) {
       const font = items[i] as FontItem
-      let fontData: ArrayBuffer | undefined
-      const safeUrl = getSafeFontUrl(font.fontFileUrl)
-      if (safeUrl) {
-        try {
-          const fontRes = await fetch(safeUrl)
-          fontData = await fontRes.arrayBuffer()
-        } catch (_error) {
-          console.warn(`Failed to fetch font file: ${safeUrl.hostname}`)
-        }
-      }
+      const fontData = await fetchRenderFont(font.fontFileUrl)
+      
       const fonts = fontData
         ? [{ name: font.name, data: fontData, weight: 400 as const }]
         : []
@@ -112,8 +83,8 @@ export async function POST(req: NextRequest) {
 
   const ctaElement = isDuotone
     ? React.createElement(DuotoneCTACard, { item: seedDuotone })
-    : React.createElement(CTACard)
-  const ctaBuffer = await renderSlide(ctaElement, isDuotone ? jaroFonts : [], height)
+    : isFonts ? React.createElement(FontCTACard) : React.createElement(CTACard)
+  const ctaBuffer = await renderSlide(ctaElement, isDuotone || isFonts ? jaroFonts : [], height)
   slideUrls.push(await uploadSlide(ctaBuffer, `slides/${postId}/${items.length + 1}.png`))
 
   return NextResponse.json({ slideUrls })

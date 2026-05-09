@@ -5,6 +5,9 @@ export type FontItem = {
   designer: string
   source: 'google_fonts' | 'fontshare'
   fontFileUrl: string
+  fontFileFormat?: string
+  fontWeight?: number
+  fontStyle?: string
   previewText: string
   downloadUrl: string
 }

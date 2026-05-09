@@ -1,30 +1,58 @@
 import { FontItem } from '@/types'
 import { isSeen } from '@/lib/dedup'
 import { env } from '@/lib/env'
+import dns from 'dns'
+
+dns.setDefaultResultOrder('ipv4first')
 
 export async function discoverGoogleFonts(): Promise<FontItem[]> {
   const apiKey = env.googleFontsApiKey
 
-  const res = await fetch(
-    `https://www.googleapis.com/webfonts/v1/webfonts?key=${apiKey}&sort=date`
-  )
-  if (!res.ok) throw new Error(`Google Fonts API error: ${res.status}`)
-  const data = await res.json()
-  const fonts = data.items?.slice(0, 10) ?? []
+  // Fetch a broad pool across multiple sort orders so the seen-set
+  // doesn't exhaust all candidates in a few runs.
+  const fetchPool = async (sort: string) => {
+    const res = await fetch(`https://www.googleapis.com/webfonts/v1/webfonts?key=${apiKey}&sort=${sort}`)
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Google Fonts API error (sort=${sort}): ${res.status} — ${body.slice(0, 200)}`)
+    }
+    return res.json()
+  }
+
+  const [byDate, byPopularity] = await Promise.allSettled([
+    fetchPool('date'),
+    fetchPool('popularity'),
+  ])
+
+  if (byDate.status === 'rejected') console.warn('[google-fonts] date fetch failed:', byDate.reason)
+  if (byPopularity.status === 'rejected') console.warn('[google-fonts] popularity fetch failed:', byPopularity.reason)
+
+  const dateItems: any[] = byDate.status === 'fulfilled' ? (byDate.value.items ?? []).slice(0, 100) : []
+  const popItems: any[] = byPopularity.status === 'fulfilled' ? (byPopularity.value.items ?? []).slice(0, 100) : []
+
+  if (dateItems.length === 0 && popItems.length === 0) {
+    throw new Error('Google Fonts API returned no items — API key may be blocked or missing Web Fonts permission')
+  }
+
+  // Merge and deduplicate by family name
+  const deduped = new Set<string>()
+  const merged: any[] = []
+  for (const item of [...dateItems, ...popItems]) {
+    if (!deduped.has(item.family)) {
+      deduped.add(item.family)
+      merged.push(item)
+    }
+  }
 
   const results: FontItem[] = []
-  for (const font of fonts) {
+  for (const font of merged) {
     const seen = await isSeen('fonts', font.family)
     if (seen) continue
 
-    // Fetch CSS to extract ttf URL for Satori compatibility
-    const cssRes = await fetch(
-      `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font.family)}`,
-      { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_8; de-at) AppleWebKit/533.21.1 (KHTML, like Gecko) Version/5.0.5 Safari/533.21.1' } }
-    )
-    const css = await cssRes.text()
-    const match = css.match(/url\((https:\/\/fonts\.gstatic\.com[^)]+\.ttf)\)/)
-    if (!match) continue
+    let fileUrl = font.files?.regular || font.files?.['400'] || Object.values(font.files || {})[0]
+    if (!fileUrl || typeof fileUrl !== 'string') continue
+
+    fileUrl = fileUrl.replace(/^http:\/\//i, 'https://')
 
     results.push({
       id: font.family.toLowerCase().replace(/\s+/g, '-'),
@@ -32,10 +60,14 @@ export async function discoverGoogleFonts(): Promise<FontItem[]> {
       category: mapCategory(font.category),
       designer: font.subsets?.join(', ') ?? 'Google',
       source: 'google_fonts',
-      fontFileUrl: match[1],
+      fontFileUrl: fileUrl,
+      fontFileFormat: fileUrl.split('.').pop(),
+      fontWeight: 400,
       previewText: 'The quick brown fox',
       downloadUrl: `https://fonts.google.com/specimen/${encodeURIComponent(font.family)}`,
     })
+
+    if (results.length >= 30) break
   }
   return results
 }

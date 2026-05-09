@@ -1,36 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { discoverGoogleFonts } from '@/lib/discover/google-fonts'
 import { discoverFontshare } from '@/lib/discover/fontshare'
-import { discoverColorHunt } from '@/lib/discover/colorhunt'
 import { discoverDuotones } from '@/lib/discover/duotone'
-import { renderSlide, uploadSlide } from '@/lib/render'
+import { fetchRenderFont, renderSlide, uploadSlide } from '@/lib/render'
 import { addPost, addSeen } from '@/lib/store'
 import { TitleCard } from '@/lib/slides/title-card'
 import { FontSlide } from '@/lib/slides/font-slide'
-import { PaletteSlide } from '@/lib/slides/palette-slide'
 import { CTACard } from '@/lib/slides/cta-card'
 import { DuotoneSlide } from '@/lib/slides/duotone-slide'
 import { DuotoneTitleCard } from '@/lib/slides/duotone-title-card'
 import { DuotoneCTACard } from '@/lib/slides/duotone-cta-card'
-import { Post, FontItem, PaletteItem, DuotoneItem } from '@/types'
+import { Post, FontItem, DuotoneItem } from '@/types'
 import { randomUUID } from 'crypto'
 import React from 'react'
 import { env } from '@/lib/env'
 
-const ALLOWED_FONT_HOSTS = ['fonts.gstatic.com', 'api.fontshare.com', 'cdn.fontshare.com']
-
-function getSafeFontUrl(rawUrl: string): URL | null {
-  try {
-    const parsed = new URL(rawUrl)
-    if (
-      parsed.protocol === 'https:' &&
-      ALLOWED_FONT_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`))
-    ) {
-      return parsed
-    }
-  } catch {}
-  return null
-}
 
 export const maxDuration = 60
 export const runtime = 'nodejs'
@@ -43,8 +27,8 @@ async function loadJaroFont(): Promise<ArrayBuffer | undefined> {
     const css = await cssRes.text()
     const match = css.match(/url\((https:\/\/fonts\.gstatic\.com[^)]+\.(?:woff2|ttf))\)/)
     if (match) {
-      const fontRes = await fetch(match[1])
-      return await fontRes.arrayBuffer()
+      // Use fetchRenderFont so WOFF2 files get decompressed to TTF for Satori
+      return await fetchRenderFont(match[1])
     }
   } catch (error) {
     console.warn('Failed to fetch Jaro font', error)
@@ -62,30 +46,36 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const templateParam = searchParams.get('template') || 'all'
   const generateFonts = templateParam === 'all' || templateParam === 'fonts'
-  const generatePalettes = templateParam === 'all' || templateParam === 'palettes'
   const generateDuotones = templateParam === 'all' || templateParam === 'duotone'
 
   // Discover fonts
-  let allFonts: FontItem[] = []
+  let renderableFonts: { font: FontItem; data: ArrayBuffer }[] = []
   if (generateFonts) {
-    const [googleFonts, fontshareFonts] = await Promise.allSettled([
+    const [googleFontsRes, fontshareFontsRes] = await Promise.allSettled([
       discoverGoogleFonts(),
       discoverFontshare(),
     ])
 
-    allFonts = [
-      ...(googleFonts.status === 'fulfilled' ? googleFonts.value : []),
-      ...(fontshareFonts.status === 'fulfilled' ? fontshareFonts.value : []),
-    ].slice(0, 5)
-  }
+    const googleFonts = googleFontsRes.status === 'fulfilled' ? googleFontsRes.value : []
+    const fontshareFonts = fontshareFontsRes.status === 'fulfilled' ? fontshareFontsRes.value : []
 
-  // Discover palettes
-  let allPalettes: PaletteItem[] = []
-  if (generatePalettes) {
-    const palettesResult = await Promise.allSettled([discoverColorHunt()])
-    allPalettes = (
-      palettesResult[0].status === 'fulfilled' ? palettesResult[0].value : []
-    ).slice(0, 5)
+    if (googleFontsRes.status === 'rejected') console.warn('[cron] Google Fonts discovery failed:', googleFontsRes.reason)
+    if (fontshareFontsRes.status === 'rejected') console.warn('[cron] Fontshare discovery failed:', fontshareFontsRes.reason)
+
+    console.log(`[cron] Discovery results — Google: ${googleFonts.length}, Fontshare: ${fontshareFonts.length}`)
+
+    const candidates = [...googleFonts, ...fontshareFonts]
+    for (const font of candidates) {
+      const data = await fetchRenderFont(font.fontFileUrl)
+      if (data) {
+        renderableFonts.push({ font, data })
+      } else {
+        console.log(`[cron] Skipped font (not renderable): ${font.name} [${font.fontFileUrl}]`)
+      }
+      if (renderableFonts.length >= 5) break
+    }
+    console.log(`[cron] Font candidates: ${candidates.length}, renderable: ${renderableFonts.length}`)
+
   }
 
   // Discover duotones
@@ -97,94 +87,45 @@ export async function GET(req: NextRequest) {
   const postsCreated: string[] = []
 
   // Generate font post
-  if (allFonts.length > 0) {
+  if (renderableFonts.length > 0) {
     const postId = randomUUID()
-    const title = `${allFonts.length} Fonts Worth Knowing`
+    const title = `${renderableFonts.length} Fonts Worth Knowing`
     const slideUrls: string[] = []
 
     // Fetch font files and render slides
-    const titleBuffer = await renderSlide(React.createElement(TitleCard, { title }))
+    const titleBuffer = await renderSlide(React.createElement(TitleCard, { title }), [], 1350)
     slideUrls.push(await uploadSlide(titleBuffer, `slides/${postId}/0.png`))
 
-    for (let i = 0; i < allFonts.length; i++) {
-      const font = allFonts[i]
-      let fontData: ArrayBuffer | undefined
-      const safeUrl = getSafeFontUrl(font.fontFileUrl)
-      if (safeUrl) {
-        try {
-          const fontRes = await fetch(safeUrl)
-          fontData = await fontRes.arrayBuffer()
-        } catch (_error) {
-          console.warn(`Failed to fetch font file: ${safeUrl.hostname}`)
-        }
-      }
+    for (let i = 0; i < renderableFonts.length; i++) {
+      const { font, data } = renderableFonts[i]
 
-      const fonts = fontData
-        ? [{ name: font.name, data: fontData, weight: 400 as const }]
-        : []
+      const fontDef = [{ name: font.name, data, weight: 400 as const }]
       const buffer = await renderSlide(
         React.createElement(FontSlide, { font }),
-        fonts
+        fontDef,
+        1350
       )
       slideUrls.push(await uploadSlide(buffer, `slides/${postId}/${i + 1}.png`))
     }
 
-    const ctaBuffer = await renderSlide(React.createElement(CTACard))
-    slideUrls.push(await uploadSlide(ctaBuffer, `slides/${postId}/${allFonts.length + 1}.png`))
+    const ctaBuffer = await renderSlide(React.createElement(CTACard), [], 1350)
+    slideUrls.push(await uploadSlide(ctaBuffer, `slides/${postId}/${renderableFonts.length + 1}.png`))
 
-    const caption = `5 fonts you need to know 🖋️\n\n${allFonts.map(f => f.name).join(' · ')}\n\n#typography #fonts #design #uidesign #typeface #graphicdesign #fontoftheday #designinspiration`
+    const caption = `5 fonts you need to know 🖋️\n\n${renderableFonts.map(f => f.font.name).join(' · ')}\n\n#typography #fonts #design #uidesign #typeface #graphicdesign #fontoftheday #designinspiration`
 
     const post: Post = {
       id: postId,
       type: 'fonts',
       title,
-      items: allFonts,
+      items: renderableFonts.map(r => r.font),
       slideUrls,
       caption,
       status: 'pending',
       createdAt: new Date().toISOString(),
     }
     await addPost(post)
-    for (const font of allFonts) {
+    for (const { font } of renderableFonts) {
       await addSeen('fonts', font.source === 'google_fonts' ? font.name : font.id)
-    }
-    postsCreated.push(postId)
-  }
-
-  // Generate palette post
-  if (allPalettes.length > 0) {
-    const postId = randomUUID()
-    const title = `${allPalettes.length} Color Palettes to Steal`
-    const slideUrls: string[] = []
-
-    const titleBuffer = await renderSlide(React.createElement(TitleCard, { title }))
-    slideUrls.push(await uploadSlide(titleBuffer, `slides/${postId}/0.png`))
-
-    for (let i = 0; i < allPalettes.length; i++) {
-      const palette = allPalettes[i]
-      const buffer = await renderSlide(React.createElement(PaletteSlide, { palette }))
-      slideUrls.push(await uploadSlide(buffer, `slides/${postId}/${i + 1}.png`))
-    }
-
-    const ctaBuffer = await renderSlide(React.createElement(CTACard))
-    slideUrls.push(await uploadSlide(ctaBuffer, `slides/${postId}/${allPalettes.length + 1}.png`))
-
-    const firstPalette = allPalettes[0]
-    const caption = `Color palettes to steal 🎨\n\n${firstPalette.colors.join(' ')}\n\n#colorpalette #colorinspiration #design #uidesign #colorscheme #graphicdesign #colortheory #designinspiration`
-
-    const post: Post = {
-      id: postId,
-      type: 'palettes',
-      title,
-      items: allPalettes,
-      slideUrls,
-      caption,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    }
-    await addPost(post)
-    for (const palette of allPalettes) {
-      await addSeen('palettes', palette.id)
     }
     postsCreated.push(postId)
   }
@@ -238,5 +179,7 @@ export async function GET(req: NextRequest) {
     postsCreated.push(postId)
   }
 
-  return NextResponse.json({ ok: true, postsCreated: postsCreated.length })
+  const result = { ok: true, postsCreated: postsCreated.length }
+  console.log(`[cron] Pipeline complete:`, result)
+  return NextResponse.json(result)
 }
