@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { renderSlide, fetchRenderFont } from '@/lib/render'
-import { TitleCard } from '@/lib/slides/title-card'
 import { FontSlide } from '@/lib/slides/font-slide'
-import { CTACard } from '@/lib/slides/cta-card'
+import { PaletteSlide } from '@/lib/slides/palette-slide'
 import { DuotoneSlide } from '@/lib/slides/duotone-slide'
-import { DuotoneTitleCard } from '@/lib/slides/duotone-title-card'
-import { DuotoneCTACard } from '@/lib/slides/duotone-cta-card'
 import React from 'react'
+import fs from 'fs'
+import path from 'path'
+import { put } from '@vercel/blob'
 
 export const maxDuration = 60
 export const runtime = 'nodejs'
@@ -19,7 +19,6 @@ async function loadJaroFont(): Promise<ArrayBuffer | undefined> {
     const css = await cssRes.text()
     const match = css.match(/url\((https:\/\/fonts\.gstatic\.com[^)]+\.(?:woff2|ttf))\)/)
     if (match) {
-      // Use fetchRenderFont so WOFF2 files get decompressed to TTF for Satori
       return await fetchRenderFont(match[1])
     }
   } catch (error) {
@@ -28,54 +27,83 @@ async function loadJaroFont(): Promise<ArrayBuffer | undefined> {
   return undefined
 }
 
+/**
+ * Pre-renders and uploads a middle preview slide to a stable Blob URL if it doesn't exist or needs update.
+ */
+async function getCachedMidPreview(template: string): Promise<string> {
+  const filename = `previews/${template}-mid.png`
+  
+  let buffer: Buffer
+  if (template === 'fonts') {
+    const dummyFont = {
+      id: 'dummy',
+      name: 'Inter',
+      category: 'sans-serif' as const,
+      designer: 'Rasmus Andersson',
+      source: 'google_fonts' as const,
+      fontFileUrl: '',
+      previewText: 'The quick brown fox jumps over the lazy dog',
+      downloadUrl: ''
+    }
+    buffer = await renderSlide(React.createElement(FontSlide, { font: dummyFont }), [], 1350)
+  } else if (template === 'palettes') {
+    const dummyPalette = {
+      id: 'dummy',
+      colors: ['#FFD60A', '#FF9F0A', '#FF453A', '#BF5AF2'],
+      colorNames: ['Yellow', 'Orange', 'Red', 'Purple'],
+      source: 'colorhunt'
+    }
+    buffer = await renderSlide(React.createElement(PaletteSlide, { palette: dummyPalette }), [], 1080)
+  } else { // duotone
+    const dummyDuotone = {
+      id: 'dummy',
+      hex1: '#FFD60A',
+      name1: 'Cyber Yellow',
+      hex2: '#000000',
+      name2: 'Black'
+    }
+    const jaroFontData = await loadJaroFont()
+    const jaroFonts = jaroFontData ? [{ name: 'Jaro', data: jaroFontData, weight: 400 as const }] : []
+    buffer = await renderSlide(React.createElement(DuotoneSlide, { item: dummyDuotone }), jaroFonts, 1350)
+  }
+
+  const blob = await put(filename, buffer, {
+    access: 'public',
+    contentType: 'image/png',
+    addRandomSuffix: false,
+  })
+  
+  return blob.url
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const template = searchParams.get('template') || 'fonts'
 
-  let firstBuffer: Buffer
-  let midBuffer: Buffer
-  let lastBuffer: Buffer
-
   try {
+    // 1. Get stable middle preview from Blob
+    const midUrl = await getCachedMidPreview(template)
+
+    // 2. Get static first/last as base64 for immediate feedback
+    let firstBase64 = ''
+    let lastBase64 = ''
+
     if (template === 'fonts') {
-      const title = '5 Fonts Worth Knowing'
-      const dummyFont = {
-        id: 'dummy',
-        name: 'Inter',
-        category: 'sans-serif' as const,
-        designer: 'Rasmus Andersson',
-        source: 'google_fonts' as const,
-        fontFileUrl: '',
-        previewText: 'The quick brown fox jumps over the lazy dog',
-        downloadUrl: ''
-      }
-
-      firstBuffer = await renderSlide(React.createElement(TitleCard, { title }), [], 1350)
-      midBuffer = await renderSlide(React.createElement(FontSlide, { font: dummyFont }), [], 1350)
-      lastBuffer = await renderSlide(React.createElement(CTACard), [], 1350)
-    }
-    else { // duotone
-      const title = '5 Duotone Palettes'
-      const dummyDuotone = {
-        id: 'dummy',
-        hex1: '#FFD60A',
-        name1: 'Cyber Yellow',
-        hex2: '#000000',
-        name2: 'Black'
-      }
-
-      const jaroFontData = await loadJaroFont()
-      const jaroFonts = jaroFontData ? [{ name: 'Jaro', data: jaroFontData, weight: 400 as const }] : []
-
-      firstBuffer = await renderSlide(React.createElement(DuotoneTitleCard, { title, item: dummyDuotone }), jaroFonts, 1350)
-      midBuffer = await renderSlide(React.createElement(DuotoneSlide, { item: dummyDuotone }), jaroFonts, 1350)
-      lastBuffer = await renderSlide(React.createElement(DuotoneCTACard, { item: dummyDuotone }), jaroFonts, 1350)
+      const firstPath = path.join(process.cwd(), 'public/assets/font-first.png')
+      const lastPath = path.join(process.cwd(), 'public/assets/font-last.png')
+      if (fs.existsSync(firstPath)) firstBase64 = fs.readFileSync(firstPath).toString('base64')
+      if (fs.existsSync(lastPath)) lastBase64 = fs.readFileSync(lastPath).toString('base64')
+    } else if (template === 'duotone') {
+      const firstPath = path.join(process.cwd(), 'public/assets/first-page.png')
+      const lastPath = path.join(process.cwd(), 'public/assets/last-page.png')
+      if (fs.existsSync(firstPath)) firstBase64 = fs.readFileSync(firstPath).toString('base64')
+      if (fs.existsSync(lastPath)) lastBase64 = fs.readFileSync(lastPath).toString('base64')
     }
 
     return NextResponse.json({
-      first: `data:image/png;base64,${firstBuffer.toString('base64')}`,
-      mid: `data:image/png;base64,${midBuffer.toString('base64')}`,
-      last: `data:image/png;base64,${lastBuffer.toString('base64')}`,
+      first: firstBase64 ? `data:image/png;base64,${firstBase64}` : null,
+      mid: midUrl,
+      last: lastBase64 ? `data:image/png;base64,${lastBase64}` : null,
     })
 
   } catch (error) {

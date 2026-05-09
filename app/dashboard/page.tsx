@@ -5,14 +5,39 @@ import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { env } from '@/lib/env'
 import { DashboardUI } from './client'
-import { del } from '@vercel/blob'
+import { del, list } from '@vercel/blob'
 import { kv } from '@/lib/kv'
 
 export const dynamic = 'force-dynamic'
 
 async function flushDatabaseAction() {
   'use server'
+  // 1. Flush KV
   await kv.flushall()
+
+  // 2. Flush Blob storage (except static assets and previews)
+  try {
+    let hasMore = true
+    let cursor: string | undefined
+
+    while (hasMore) {
+      const { blobs, cursor: nextCursor } = await list({ cursor })
+      
+      const toDelete = blobs
+        .filter(b => !b.pathname.startsWith('static/') && !b.pathname.startsWith('previews/'))
+        .map(b => b.url)
+
+      if (toDelete.length > 0) {
+        await del(toDelete)
+      }
+
+      cursor = nextCursor
+      hasMore = !!cursor
+    }
+  } catch (error) {
+    console.error('Failed to flush Blob storage:', error)
+  }
+
   revalidatePath('/dashboard')
 }
 
@@ -25,22 +50,39 @@ async function publishPostAction(postId: string, formData: FormData) {
     return
   }
 
-  const childIds = await Promise.all(post.slideUrls.map(url => uploadSlideToIG(url)))
-  const containerId = await createCarousel(childIds, post.caption)
-  const igMediaId = await publishCarousel(containerId)
-  await updatePost(postId, {
-    status: 'published',
-    igMediaId,
-    publishedAt: new Date().toISOString(),
-  })
+  try {
+    const childIds = await Promise.all(post.slideUrls.map(url => uploadSlideToIG(url)))
+    const containerId = await createCarousel(childIds, post.caption)
+    const igMediaId = await publishCarousel(containerId)
+    
+    if (igMediaId) {
+      await updatePost(postId, {
+        status: 'published',
+        igMediaId,
+        publishedAt: new Date().toISOString(),
+      })
 
-  // Delete blobs after publishing since IG downloads them
-  for (const url of post.slideUrls) {
-    try {
-      await del(url)
-    } catch (e) {
-      console.error(`Failed to delete published blob: ${url}`, e)
+      // Only delete blobs if Instagram publication succeeded
+      // Also ensure we NEVER delete static or preview assets here
+      const slidesToDelete = post.slideUrls.filter(url => 
+        !url.includes('/static/') && !url.includes('/previews/')
+      )
+
+      if (slidesToDelete.length > 0) {
+        try {
+          await del(slidesToDelete)
+          console.log(`[publish] Deleted ${slidesToDelete.length} blobs for post ${postId}`)
+        } catch (e) {
+          console.error(`[publish] Failed to delete blobs for post ${postId}:`, e)
+        }
+      }
+    } else {
+      throw new Error('Instagram publication failed: No media ID returned')
     }
+  } catch (error) {
+    console.error(`[publish] Error publishing post ${postId}:`, error)
+    // We don't delete blobs if it failed, so the user can retry
+    return { error: 'Failed to publish to Instagram' }
   }
 
   revalidatePath('/dashboard')

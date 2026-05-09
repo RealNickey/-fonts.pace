@@ -54,13 +54,11 @@ export function DashboardUI({
         const data = await res.json()
         setPreviewData(data)
       } else {
-        alert('Failed to load preview.')
-        setShowPreviewDialog(false)
+        // We allow continuing even if preview fails
+        console.warn('Failed to load preview images.')
       }
     } catch (e) {
       console.error(e)
-      alert('Failed to load preview.')
-      setShowPreviewDialog(false)
     } finally {
       setIsLoadingPreview(false)
     }
@@ -164,39 +162,55 @@ export function DashboardUI({
     if (!isDragging) return
     e.preventDefault()
     const x = e.pageX - e.currentTarget.offsetLeft
-    const walk = (x - startX) * 2 // Scroll-fast multiplier
+    const walk = (x - startX) * 2
     e.currentTarget.scrollLeft = scrollLeft - walk
   }
 
-  const currentPost = filteredPosts[safeIndex]
+  const currentPost = filteredPosts[currentIndex]
 
-  const nextPost = () => setCurrentIndex(prev => Math.min(prev + 1, filteredPosts.length - 1))
-  const prevPost = () => setCurrentIndex(prev => Math.max(prev - 1, 0))
+  const nextPost = () => {
+    if (currentIndex < filteredPosts.length - 1) {
+      setCurrentIndex(currentIndex + 1)
+    }
+  }
+
+  const prevPost = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1)
+    }
+  }
 
   return (
-    <div style={{ backgroundColor: '#0a0a0a', minHeight: '100vh', color: '#f3f4f6', overflow: 'hidden' }}>
-      <style dangerouslySetInnerHTML={{__html: `
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+    <div style={{ 
+      height: '100vh', width: '100vw', 
+      backgroundColor: '#000', color: '#fff', 
+      display: 'flex', flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        .industrial-text {
-          font-family: 'Oswald', sans-serif;
-          text-transform: uppercase;
-        }
-        
-        .tech-text {
-          font-family: 'JetBrains Mono', monospace;
+        @font-face {
+          font-family: 'Tech';
+          src: url('https://fonts.cdnfonts.com/s/16061/TerminusTTF-4.40.1.woff');
         }
 
-        .hide-scrollbar::-webkit-scrollbar {
-          display: none;
+        .tech-text {
+          font-family: 'Terminus', 'Tech', 'Courier New', monospace;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
         }
-        .hide-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
+
+        .industrial-text {
+          font-family: 'Inter', sans-serif;
+          font-weight: 900;
+          letter-spacing: -0.04em;
         }
 
         .brutalist-button {
-          transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          border: 2px solid #fff;
           box-shadow: 4px 4px 0px rgba(255, 255, 255, 0.1);
         }
         .brutalist-button:hover:not(:disabled) {
@@ -253,18 +267,22 @@ export function DashboardUI({
             }}>
               <h2 className="industrial-text" style={{ margin: 0, fontSize: '32px', color: '#FFD60A' }}>PREVIEW: {pipelineTemplate.toUpperCase()}</h2>
 
-              <div style={{ display: 'flex', gap: '24px', overflowX: 'auto', paddingBottom: '16px' }}>
+              <div style={{ display: 'flex', gap: '24px', overflowX: 'auto', paddingBottom: '16px', minWidth: '600px', justifyContent: 'center' }}>
                 {isLoadingPreview ? (
                   <div className="tech-text" style={{ color: '#888', padding: '100px', textAlign: 'center', width: '100%' }}>
                     GENERATING REALTIME SATORI PREVIEW...
                   </div>
                 ) : previewData ? (
                   <>
-                    <img src={previewData.first} alt="First Slide" style={{ height: '400px', objectFit: 'contain', border: '1px solid #333' }} />
+                    {previewData.first && <img src={previewData.first} alt="First Slide" style={{ height: '400px', objectFit: 'contain', border: '1px solid #333' }} />}
                     <img src={previewData.mid} alt="Content Slide" style={{ height: '400px', objectFit: 'contain', border: '1px solid #333' }} />
-                    <img src={previewData.last} alt="Last Slide" style={{ height: '400px', objectFit: 'contain', border: '1px solid #333' }} />
+                    {previewData.last && <img src={previewData.last} alt="Last Slide" style={{ height: '400px', objectFit: 'contain', border: '1px solid #333' }} />}
                   </>
-                ) : null}
+                ) : (
+                   <div className="tech-text" style={{ color: '#888', padding: '100px', textAlign: 'center', width: '100%' }}>
+                    PREVIEW UNAVAILABLE. YOU CAN STILL RUN THE PIPELINE.
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '16px', justifyContent: 'flex-end' }}>
@@ -280,7 +298,6 @@ export function DashboardUI({
                 </button>
                 <button
                   onClick={handleConfirmRun}
-                  disabled={isLoadingPreview}
                   className="brutalist-button tech-text"
                   style={{
                     padding: '12px 24px', backgroundColor: '#FFD60A', color: '#000',
@@ -304,49 +321,36 @@ export function DashboardUI({
             exit={{ opacity: 0 }}
             onClick={() => setPreviewImage(null)}
             style={{
-              position: 'fixed',
-              top: 0, left: 0, right: 0, bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.9)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 9999,
-              cursor: 'zoom-out',
-              padding: '24px'
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.95)', zIndex: 1000,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'zoom-out'
             }}
           >
             <motion.img
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               src={previewImage}
-              style={{
-                maxWidth: '100%',
-                maxHeight: '100%',
-                objectFit: 'contain',
-                borderRadius: '8px',
-                border: '1px solid #333'
-              }}
+              style={{ maxHeight: '90vh', maxWidth: '90vw', objectFit: 'contain', boxShadow: '0 0 100px rgba(0,0,0,0.8)' }}
             />
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: '24px', gap: '24px' }}>
+      {/* Main UI */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '24px', gap: '24px' }}>
         
-        {/* Header / Top Bar */}
-        <div style={{ 
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-          borderBottom: '2px solid #333', paddingBottom: '20px' 
-        }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h1 className="industrial-text" style={{ margin: 0, fontSize: '48px', lineHeight: 1, letterSpacing: '0.02em', color: '#fffc' }}>
-              P<span style={{ color: '#FFD60A' }}>/</span>CE CORE
+            <h1 className="industrial-text" style={{ fontSize: '48px', margin: 0, color: '#FFD60A', lineHeight: 0.9 }}>
+              FONTS<br/>.PACE
             </h1>
-            <div className="tech-text" style={{ display: 'flex', gap: '16px', marginTop: '12px', fontSize: '13px', color: '#888' }}>
-              <span>[ PENDING: {initialPending.length} ]</span>
-              <span>[ PUBLISHED: {initialPublished.length} ]</span>
+            <div style={{ display: 'flex', gap: '16px', marginTop: '12px' }}>
+              <div className="tech-text" style={{ fontSize: '12px', color: '#666', borderLeft: '2px solid #FFD60A', paddingLeft: '8px' }}>
+                PENDING_QUEUE: {localPending.length}<br/>
+                STATUS: {isPending ? 'BUSY_PIPELINE' : 'READY_IDLE'}
+              </div>
             </div>
           </div>
 
@@ -367,6 +371,7 @@ export function DashboardUI({
                 }}
               >
                 <option value="fonts">FONTS</option>
+                <option value="palettes">PALETTES</option>
                 <option value="duotone">DUOTONE</option>
               </select>
               
@@ -449,54 +454,46 @@ export function DashboardUI({
                         </span>
                       </div>
 
-                      <h2 className="industrial-text" style={{ 
-                        fontSize: '32px', margin: '0 0 24px', lineHeight: 1.1, color: '#e5e5e5' 
-                      }}>
-                        {currentPost.title}
-                      </h2>
+                      <h2 className="industrial-text" style={{ fontSize: '32px', marginBottom: '8px', lineHeight: 1 }}>{currentPost.title}</h2>
+                      <div className="tech-text" style={{ color: '#666', fontSize: '12px', marginBottom: '24px' }}>
+                        ID: {currentPost.id.slice(0, 8)}...<br/>
+                        CREATED: {new Date(currentPost.createdAt).toLocaleDateString()}
+                      </div>
 
-                      <form id={`publish-form-${currentPost.id}`} onSubmit={(e) => handlePublish(currentPost.id, e)} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <label className="tech-text" style={{ fontSize: '12px', color: '#888', marginBottom: '8px', display: 'block' }}>CAPTION DATA</label>
-                        <textarea
-                          name="caption"
-                          defaultValue={currentPost.caption}
-                          className="tech-text hide-scrollbar"
-                          style={{
-                            flex: 1,
-                            width: '100%',
-                            padding: '16px',
-                            backgroundColor: '#0a0a0a',
-                            border: '1px solid #333',
-                            color: '#ccc',
-                            fontSize: '13px',
-                            lineHeight: 1.5,
-                            resize: 'none',
-                            outline: 'none',
-                            borderRadius: '4px'
-                          }}
-                        />
-                      </form>
+                      <form onSubmit={(e) => handlePublish(currentPost.id, e)} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <label className="tech-text" style={{ fontSize: '11px', color: '#888' }}>CAPTION</label>
+                          <textarea 
+                            name="caption"
+                            defaultValue={currentPost.caption}
+                            className="hide-scrollbar"
+                            style={{ 
+                              width: '100%', height: '150px', backgroundColor: '#000', color: '#fff',
+                              border: '1px solid #333', padding: '12px', borderRadius: '4px',
+                              fontFamily: 'monospace', fontSize: '13px', resize: 'none'
+                            }}
+                          />
+                        </div>
 
-                      <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-                        <button
+                        <button 
                           type="submit"
-                          form={`publish-form-${currentPost.id}`}
                           disabled={isPending}
-                          className="brutalist-button industrial-text"
+                          className="brutalist-button tech-text"
                           style={{
-                            flex: 1, padding: '16px 0', backgroundColor: '#FFD60A',
-                            color: '#000', border: '1px solid #000', cursor: 'pointer',
-                            fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                            padding: '16px', backgroundColor: '#00cc66', color: '#000',
+                            fontWeight: 'bold', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px'
                           }}
                         >
-                          <Check size={20} strokeWidth={3} /> APPROVE
+                          <Check size={24} strokeWidth={3} />
+                          APPROVE
                         </button>
+                      </form>
 
+                      <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr auto', gap: '16px' }}>
                         <button
-                          type="button"
                           onClick={() => handleReject(currentPost.id)}
                           disabled={isPending}
-                          className="brutalist-button industrial-text"
+                          className="brutalist-button tech-text"
                           style={{
                             padding: '16px 24px', backgroundColor: '#1a1a1a',
                             color: '#ff4444', border: '1px solid #ff4444', cursor: 'pointer',

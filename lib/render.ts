@@ -102,3 +102,21 @@ export async function uploadSlide(buffer: Buffer, filename: string): Promise<str
   })
   return blob.url
 }
+
+/**
+ * Ensures a static asset (like first/last pages) is uploaded and returns its URL.
+ * Uses a deterministic path in Blob storage to "cache" the file.
+ */
+export async function getStaticAssetUrl(assetName: string): Promise<string> {
+  const filePath = path.join(process.cwd(), 'public', 'assets', assetName)
+  const buffer = fs.readFileSync(filePath)
+  
+  // We use a fixed filename in a 'static' folder to avoid re-uploading if possible,
+  // though put() will overwrite or create a new version.
+  const blob = await put(`static/${assetName}`, buffer, {
+    access: 'public',
+    contentType: 'image/png',
+    addRandomSuffix: false, // Important for "stable" URLs
+  })
+  return blob.url
+}

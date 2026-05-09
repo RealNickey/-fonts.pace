@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { discoverGoogleFonts } from '@/lib/discover/google-fonts'
 import { discoverFontshare } from '@/lib/discover/fontshare'
 import { discoverDuotones } from '@/lib/discover/duotone'
-import { fetchRenderFont, renderSlide, uploadSlide } from '@/lib/render'
+import { fetchRenderFont, renderSlide, uploadSlide, getStaticAssetUrl } from '@/lib/render'
 import { addPost, addSeen } from '@/lib/store'
 import { TitleCard } from '@/lib/slides/title-card'
 import { FontSlide } from '@/lib/slides/font-slide'
@@ -14,6 +14,8 @@ import { Post, FontItem, DuotoneItem } from '@/types'
 import { randomUUID } from 'crypto'
 import React from 'react'
 import { env } from '@/lib/env'
+import fs from 'fs'
+import path from 'path'
 
 
 export const maxDuration = 60
@@ -102,9 +104,8 @@ export async function GET(req: NextRequest) {
     const jaroFontData = await loadJaroFont()
     const jaroFonts = jaroFontData ? [{ name: 'Jaro', data: jaroFontData, weight: 400 as const }] : []
 
-    // Fetch font files and render slides
-    const titleBuffer = await renderSlide(React.createElement(TitleCard, { title }), jaroFonts, 1350)
-    slideUrls.push(await uploadSlide(titleBuffer, `slides/${postId}/0.png`))
+    // Optimization: Use static font first page directly
+    slideUrls.push(await getStaticAssetUrl('font-first.png'))
 
     for (let i = 0; i < renderableFonts.length; i++) {
       const { font, data } = renderableFonts[i]
@@ -118,8 +119,8 @@ export async function GET(req: NextRequest) {
       slideUrls.push(await uploadSlide(buffer, `slides/${postId}/${i + 1}.png`))
     }
 
-    const ctaBuffer = await renderSlide(React.createElement(CTACard), jaroFonts, 1350)
-    slideUrls.push(await uploadSlide(ctaBuffer, `slides/${postId}/${renderableFonts.length + 1}.png`))
+    // Optimization: Use static font last page directly
+    slideUrls.push(await getStaticAssetUrl('font-last.png'))
 
     const caption = `5 fonts you need to know 🖋️\n\n${renderableFonts.map(f => f.font.name).join(' · ')}\n\n#typography #fonts #design #uidesign #typeface #graphicdesign #fontoftheday #designinspiration`
 
@@ -150,12 +151,8 @@ export async function GET(req: NextRequest) {
     const jaroFontData = await loadJaroFont()
     const jaroFonts = jaroFontData ? [{ name: 'Jaro', data: jaroFontData, weight: 400 as const }] : []
 
-    const titleBuffer = await renderSlide(
-      React.createElement(DuotoneTitleCard, { title, item: seedDuotone }),
-      jaroFonts,
-      1350
-    )
-    slideUrls.push(await uploadSlide(titleBuffer, `slides/${postId}/0.png`))
+    // Optimization: Use static first page image directly (bypassing Satori)
+    slideUrls.push(await getStaticAssetUrl('first-page.png'))
 
     for (let i = 0; i < allDuotones.length; i++) {
       const item = allDuotones[i]
@@ -163,12 +160,8 @@ export async function GET(req: NextRequest) {
       slideUrls.push(await uploadSlide(buffer, `slides/${postId}/${i + 1}.png`))
     }
 
-    const ctaBuffer = await renderSlide(
-      React.createElement(DuotoneCTACard, { item: seedDuotone }),
-      jaroFonts,
-      1350
-    )
-    slideUrls.push(await uploadSlide(ctaBuffer, `slides/${postId}/${allDuotones.length + 1}.png`))
+    // Optimization: Use static last page image directly (bypassing Satori)
+    slideUrls.push(await getStaticAssetUrl('last-page.png'))
 
     const caption = `Perfect color pairs 🎨\n\n#colorpalette #duotone #design #uidesign #colorscheme #graphicdesign #colortheory #designinspiration`
 

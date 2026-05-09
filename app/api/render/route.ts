@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchRenderFont, renderSlide, uploadSlide } from '@/lib/render'
+import { fetchRenderFont, renderSlide, uploadSlide, getStaticAssetUrl } from '@/lib/render'
 import { TitleCard } from '@/lib/slides/title-card'
 import { FontTitleCard } from '@/lib/slides/font-title-card'
 import { FontSlide } from '@/lib/slides/font-slide'
@@ -11,6 +11,8 @@ import { DuotoneTitleCard } from '@/lib/slides/duotone-title-card'
 import { DuotoneCTACard } from '@/lib/slides/duotone-cta-card'
 import { FontItem, PaletteItem, DuotoneItem } from '@/types'
 import React from 'react'
+import fs from 'fs'
+import path from 'path'
 
 export const maxDuration = 60
 export const runtime = 'nodejs'
@@ -38,23 +40,23 @@ export async function POST(req: NextRequest) {
 
   const slideUrls: string[] = []
   
-  let title = ''
-  if (type === 'fonts') title = `${items.length} Fonts Worth Knowing`
-  else if (type === 'palettes') title = `${items.length} Color Palettes to Steal`
-  else if (type === 'duotone') title = `${items.length} Duotone Palettes`
-  
   const isDuotone = type === 'duotone'
   const isFonts = type === 'fonts'
   const height = isDuotone || isFonts ? 1350 : 1080
-  const seedDuotone = isDuotone ? (items?.[0] as DuotoneItem | undefined) : undefined
   const jaroFontData = isDuotone || isFonts ? await loadJaroFont() : undefined
   const jaroFonts = jaroFontData ? [{ name: 'Jaro', data: jaroFontData, weight: 400 as const }] : []
 
-  const titleElement = isDuotone
-    ? React.createElement(DuotoneTitleCard, { title, item: seedDuotone })
-    : isFonts ? React.createElement(FontTitleCard) : React.createElement(TitleCard, { title })
-  const titleBuffer = await renderSlide(titleElement, isDuotone || isFonts ? jaroFonts : [], height)
-  slideUrls.push(await uploadSlide(titleBuffer, `slides/${postId}/0.png`))
+  // Optimization for First slide
+  if (isDuotone) {
+    slideUrls.push(await getStaticAssetUrl('first-page.png'))
+  } else if (isFonts) {
+    slideUrls.push(await getStaticAssetUrl('font-first.png'))
+  } else {
+    let title = `${items.length} Color Palettes to Steal`
+    const titleElement = React.createElement(TitleCard, { title })
+    const titleBuffer = await renderSlide(titleElement, [], height)
+    slideUrls.push(await uploadSlide(titleBuffer, `slides/${postId}/0.png`))
+  }
 
   if (type === 'fonts') {
     for (let i = 0; i < items.length; i++) {
@@ -81,11 +83,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const ctaElement = isDuotone
-    ? React.createElement(DuotoneCTACard, { item: seedDuotone })
-    : isFonts ? React.createElement(FontCTACard) : React.createElement(CTACard)
-  const ctaBuffer = await renderSlide(ctaElement, isDuotone || isFonts ? jaroFonts : [], height)
-  slideUrls.push(await uploadSlide(ctaBuffer, `slides/${postId}/${items.length + 1}.png`))
+  // Optimization for Last slide
+  if (isDuotone) {
+    slideUrls.push(await getStaticAssetUrl('last-page.png'))
+  } else if (isFonts) {
+    slideUrls.push(await getStaticAssetUrl('font-last.png'))
+  } else {
+    const ctaElement = React.createElement(CTACard)
+    const ctaBuffer = await renderSlide(ctaElement, [], height)
+    slideUrls.push(await uploadSlide(ctaBuffer, `slides/${postId}/${items.length + 1}.png`))
+  }
 
   return NextResponse.json({ slideUrls })
 }
