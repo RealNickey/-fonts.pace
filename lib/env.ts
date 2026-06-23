@@ -20,6 +20,13 @@ export const env = {
   get igUserId() {
     return pick(process.env.IG_USER_ID)
   },
+  // Required for automatic token refresh (see lib/token.ts)
+  get fbAppId() {
+    return pick(process.env.FB_APP_ID)
+  },
+  get fbAppSecret() {
+    return pick(process.env.FB_APP_SECRET)
+  },
   get cronSecret() {
     return required('CRON_SECRET')
   },

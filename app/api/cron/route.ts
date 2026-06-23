@@ -14,6 +14,7 @@ import { Post, FontItem, DuotoneItem } from '@/types'
 import { randomUUID } from 'crypto'
 import React from 'react'
 import { env } from '@/lib/env'
+import { getAccessToken } from '@/lib/token'
 import fs from 'fs'
 import path from 'path'
 
@@ -49,6 +50,16 @@ export async function GET(req: NextRequest) {
   const templateParam = searchParams.get('template') || 'all'
   const generateFonts = templateParam === 'all' || templateParam === 'fonts'
   const generateDuotones = templateParam === 'all' || templateParam === 'duotone'
+
+  // Proactively refresh the Instagram access token if it is close to expiring.
+  // This runs every day via the cron and keeps the token alive indefinitely
+  // without any manual intervention (as long as FB_APP_ID + FB_APP_SECRET are set).
+  const activeToken = await getAccessToken()
+  if (!activeToken) {
+    console.warn('[cron] No Instagram access token available — publishing will be skipped.')
+  } else {
+    console.log('[cron] Instagram token is active.')
+  }
 
   // Discover fonts
   let renderableFonts: { font: FontItem; data: ArrayBuffer }[] = []

@@ -1,28 +1,37 @@
 import { env } from '@/lib/env'
-import dns from 'node:dns'
+import { getAccessToken } from '@/lib/token'
+import { fetchFb } from '@/lib/fetch-fb'
 
-// Fix Node.js fetch ConnectTimeoutError to graph.facebook.com over IPv6
-dns.setDefaultResultOrder('ipv4first')
+// The correct base URL for the Instagram Graph API (Content Publishing API)
+// graph.instagram.com was for the deprecated Basic Display API.
+// Business/Creator accounts must use graph.facebook.com.
+const IG_API_BASE = 'https://graph.facebook.com/v25.0'
 
-export async function uploadSlideToIG(imageUrl: string): Promise<string> {
-  const igUserId = env.igUserId
-  const accessToken = env.igAccessToken
-
-  if (!igUserId || !accessToken) {
-    console.warn(`[DRY RUN] Skipping IG slide upload, missing credentials: ${imageUrl}`)
-    return `dummy_slide_${Math.random().toString(36).substring(7)}`
+async function getPageAccessToken(userToken: string, igUserId: string): Promise<string> {
+  const r = await fetchFb(`https://graph.facebook.com/v25.0/me/accounts?fields=instagram_business_account,access_token&access_token=${userToken}`)
+  const d = await r.json() as { data?: any[] }
+  const page = d.data?.find((p: any) => p.instagram_business_account?.id === igUserId)
+  if (!page || !page.access_token) {
+    throw new Error('Failed to find linked Facebook Page Access Token for the Instagram Business Account. Ensure the IG account is linked to a Facebook Page.')
   }
+  return page.access_token
+}
 
-  const res = await fetch(
-    `https://graph.instagram.com/v25.0/${igUserId}/media`,
+export async function uploadSlideToIG(slideUrl: string): Promise<string> {
+  const userToken = await getAccessToken()
+  const pageToken = await getPageAccessToken(userToken, env.igUserId)
+
+  // 1. Create a container for this single slide (image or video)
+  const res = await fetchFb(
+    `https://graph.facebook.com/v25.0/${env.igUserId}/media`,
     {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': `Bearer ${pageToken}`
       },
       body: JSON.stringify({
-        image_url: imageUrl,
+        image_url: slideUrl,
         is_carousel_item: true
       }),
     }
@@ -37,20 +46,22 @@ export async function createCarousel(
   caption: string
 ): Promise<string> {
   const igUserId = env.igUserId
-  const accessToken = env.igAccessToken
+  const userToken = await getAccessToken()
 
-  if (!igUserId || !accessToken) {
+  if (!igUserId || !userToken) {
     console.warn(`[DRY RUN] Skipping IG carousel creation, missing credentials`)
     return `dummy_carousel_${Math.random().toString(36).substring(7)}`
   }
 
-  const res = await fetch(
-    `https://graph.instagram.com/v25.0/${igUserId}/media`,
+  const pageToken = await getPageAccessToken(userToken, igUserId)
+
+  const res = await fetchFb(
+    `${IG_API_BASE}/${igUserId}/media`,
     {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': `Bearer ${pageToken}`
       },
       body: JSON.stringify({
         media_type: 'CAROUSEL',
@@ -66,20 +77,22 @@ export async function createCarousel(
 
 export async function publishCarousel(containerId: string): Promise<string> {
   const igUserId = env.igUserId
-  const accessToken = env.igAccessToken
+  const userToken = await getAccessToken()
 
-  if (!igUserId || !accessToken) {
+  if (!igUserId || !userToken) {
     console.warn(`[DRY RUN] Skipping IG carousel publish, missing credentials. Dummy container: ${containerId}`)
     return `dummy_publish_${Math.random().toString(36).substring(7)}`
   }
 
-  const res = await fetch(
-    `https://graph.instagram.com/v25.0/${igUserId}/media_publish`,
+  const pageToken = await getPageAccessToken(userToken, igUserId)
+
+  const res = await fetchFb(
+    `${IG_API_BASE}/${igUserId}/media_publish`,
     {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': `Bearer ${pageToken}`
       },
       body: JSON.stringify({
         creation_id: containerId
