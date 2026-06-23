@@ -159,21 +159,30 @@ async function runPipelineAction(template: string) {
   revalidatePath('/dashboard')
 }
 
+async function setApprovalAction(required: boolean) {
+  'use server'
+  await kv.set('settings:approval_required', required)
+  revalidatePath('/dashboard')
+}
+
 export default async function DashboardPage() {
-  const [pending, published] = await Promise.all([
+  const [pending, published, approvalRequired] = await Promise.all([
     getPosts('pending'),
     getPosts('published'),
+    kv.get<boolean>('settings:approval_required').then(val => val ?? false),
   ])
 
   return (
     <DashboardUI 
       initialPending={pending} 
       initialPublished={published} 
+      initialApprovalRequired={approvalRequired}
       runPipelineAction={runPipelineAction}
       publishPostAction={publishPostAction}
       rejectPostAction={rejectPostAction}
       deleteSlideAction={deleteSlideAction}
       flushDatabaseAction={flushDatabaseAction}
+      setApprovalAction={setApprovalAction}
     />
   )
 }

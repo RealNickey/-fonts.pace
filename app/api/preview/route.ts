@@ -73,6 +73,7 @@ async function getCachedMidPreview(template: string): Promise<string> {
     access: 'public',
     contentType: 'image/png',
     addRandomSuffix: false,
+    allowOverwrite: true,
   })
   
   return blob.url

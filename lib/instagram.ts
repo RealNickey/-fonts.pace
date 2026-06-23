@@ -9,10 +9,15 @@ const IG_API_BASE = 'https://graph.facebook.com/v25.0'
 
 async function getPageAccessToken(userToken: string, igUserId: string): Promise<string> {
   const r = await fetchFb(`https://graph.facebook.com/v25.0/me/accounts?fields=instagram_business_account,access_token&access_token=${userToken}`)
-  const d = await r.json() as { data?: any[] }
+  const d = await r.json() as { data?: any[], error?: { message: string } }
+  
+  if (d.error) {
+    throw new Error(`Facebook API Error: ${d.error.message}`)
+  }
+  
   const page = d.data?.find((p: any) => p.instagram_business_account?.id === igUserId)
   if (!page || !page.access_token) {
-    throw new Error('Failed to find linked Facebook Page Access Token for the Instagram Business Account. Ensure the IG account is linked to a Facebook Page.')
+    throw new Error(`Failed to find linked Facebook Page Access Token for the Instagram Business Account (ID: ${igUserId}). Ensure the IG account is linked to a Facebook Page.`)
   }
   return page.access_token
 }

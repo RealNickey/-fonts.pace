@@ -8,24 +8,34 @@ import { Post } from '@/types'
 export function DashboardUI({ 
   initialPending, 
   initialPublished,
+  initialApprovalRequired,
   runPipelineAction,
   publishPostAction,
   rejectPostAction,
   deleteSlideAction,
-  flushDatabaseAction
+  flushDatabaseAction,
+  setApprovalAction
 }: {
   initialPending: Post[]
   initialPublished: Post[]
+  initialApprovalRequired: boolean
   runPipelineAction: (template: string) => Promise<void>
   publishPostAction: (postId: string, formData: FormData) => Promise<{ error?: string } | void>
   rejectPostAction: (postId: string, formData: FormData) => Promise<void>
   deleteSlideAction: (postId: string, slideIndex: number) => Promise<{ error?: string, success?: boolean }>
   flushDatabaseAction: () => Promise<void>
+  setApprovalAction: (required: boolean) => Promise<void>
 }) {
   const [isPending, startTransition] = useTransition()
   
   const [currentIndex, setCurrentIndex] = useState(0)
   
+  const [approvalRequiredState, setApprovalRequiredState] = useState(initialApprovalRequired)
+
+  useEffect(() => {
+    setApprovalRequiredState(initialApprovalRequired)
+  }, [initialApprovalRequired])
+
   // Pipeline template selection
   const [pipelineTemplate, setPipelineTemplate] = useState('fonts')
 
@@ -191,13 +201,10 @@ export function DashboardUI({
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        @font-face {
-          font-family: 'Tech';
-          src: url('https://fonts.cdnfonts.com/s/16061/TerminusTTF-4.40.1.woff');
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
         .tech-text {
-          font-family: 'Terminus', 'Tech', 'Courier New', monospace;
+          font-family: 'Terminus', 'Share Tech Mono', 'Courier New', monospace;
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
@@ -356,7 +363,39 @@ export function DashboardUI({
 
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => {
+                  startTransition(async () => {
+                    const newValue = !approvalRequiredState
+                    await setApprovalAction(newValue)
+                    setApprovalRequiredState(newValue)
+                  })
+                }}
+                disabled={isPending}
+                className="brutalist-button tech-text"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '8px 16px', 
+                  backgroundColor: approvalRequiredState ? '#221111' : '#112211',
+                  color: approvalRequiredState ? '#ff4444' : '#00cc66',
+                  border: `2px solid ${approvalRequiredState ? '#ff4444' : '#00cc66'}`, 
+                  borderRadius: '4px', cursor: 'pointer',
+                  fontWeight: 'bold',
+                  boxShadow: 'none'
+                }}
+              >
+                <div style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: approvalRequiredState ? '#ff4444' : '#00cc66',
+                  boxShadow: `0 0 8px ${approvalRequiredState ? '#ff4444' : '#00cc66'}`
+                }} />
+                {approvalRequiredState ? 'APPROVAL: REQUIRED' : 'APPROVAL: BYPASSED'}
+              </button>
+
               <select 
+                suppressHydrationWarning
                 value={pipelineTemplate}
                 onChange={e => setPipelineTemplate(e.target.value)}
                 className="tech-text"

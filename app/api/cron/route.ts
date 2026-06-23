@@ -17,6 +17,9 @@ import { env } from '@/lib/env'
 import { getAccessToken } from '@/lib/token'
 import fs from 'fs'
 import path from 'path'
+import { kv } from '@/lib/kv'
+import { uploadSlideToIG, createCarousel, publishCarousel } from '@/lib/instagram'
+import { del } from '@vercel/blob'
 
 
 export const maxDuration = 60
@@ -48,8 +51,17 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const templateParam = searchParams.get('template') || 'all'
-  const generateFonts = templateParam === 'all' || templateParam === 'fonts'
-  const generateDuotones = templateParam === 'all' || templateParam === 'duotone'
+
+  let currentTemplate = templateParam
+  if (templateParam === 'all') {
+    const lastTemplate = await kv.get<string>('settings:last_cron_template')
+    currentTemplate = lastTemplate === 'fonts' ? 'duotone' : 'fonts'
+    await kv.set('settings:last_cron_template', currentTemplate)
+    console.log(`[cron] Alternating template: last was "${lastTemplate}", selected "${currentTemplate}"`)
+  }
+
+  const generateFonts = currentTemplate === 'fonts'
+  const generateDuotones = currentTemplate === 'duotone'
 
   // Proactively refresh the Instagram access token if it is close to expiring.
   // This runs every day via the cron and keeps the token alive indefinitely
@@ -145,7 +157,48 @@ export async function GET(req: NextRequest) {
       status: 'pending',
       createdAt: new Date().toISOString(),
     }
+
+    const approvalRequired = (await kv.get<boolean>('settings:approval_required')) ?? false
+    let isPublished = false
+    let igMediaId = ''
+
+    if (!approvalRequired) {
+      try {
+        console.log(`[cron] Approval bypassed. Auto-publishing fonts post ${postId} to Instagram...`)
+        const childIds = await Promise.all(post.slideUrls.map(url => uploadSlideToIG(url)))
+        const containerId = await createCarousel(childIds, post.caption)
+        const mediaId = await publishCarousel(containerId)
+        if (mediaId) {
+          igMediaId = mediaId
+          isPublished = true
+        }
+      } catch (error) {
+        console.error(`[cron] Direct publishing failed for post ${postId}:`, error)
+      }
+    }
+
+    if (isPublished) {
+      post.status = 'published'
+      post.igMediaId = igMediaId
+      post.publishedAt = new Date().toISOString()
+    }
+
     await addPost(post)
+
+    if (isPublished) {
+      const slidesToDelete = post.slideUrls.filter(url => 
+        !url.includes('/static/') && !url.includes('/previews/')
+      )
+      if (slidesToDelete.length > 0) {
+        try {
+          await del(slidesToDelete)
+          console.log(`[cron] Deleted ${slidesToDelete.length} blobs for auto-published post ${postId}`)
+        } catch (e) {
+          console.error(`[cron] Failed to delete blobs for post ${postId}:`, e)
+        }
+      }
+    }
+
     for (const { font } of renderableFonts) {
       await addSeen('fonts', font.source === 'google_fonts' ? font.name : font.id)
     }
@@ -186,7 +239,48 @@ export async function GET(req: NextRequest) {
       status: 'pending',
       createdAt: new Date().toISOString(),
     }
+
+    const approvalRequired = (await kv.get<boolean>('settings:approval_required')) ?? false
+    let isPublished = false
+    let igMediaId = ''
+
+    if (!approvalRequired) {
+      try {
+        console.log(`[cron] Approval bypassed. Auto-publishing duotone post ${postId} to Instagram...`)
+        const childIds = await Promise.all(post.slideUrls.map(url => uploadSlideToIG(url)))
+        const containerId = await createCarousel(childIds, post.caption)
+        const mediaId = await publishCarousel(containerId)
+        if (mediaId) {
+          igMediaId = mediaId
+          isPublished = true
+        }
+      } catch (error) {
+        console.error(`[cron] Direct publishing failed for post ${postId}:`, error)
+      }
+    }
+
+    if (isPublished) {
+      post.status = 'published'
+      post.igMediaId = igMediaId
+      post.publishedAt = new Date().toISOString()
+    }
+
     await addPost(post)
+
+    if (isPublished) {
+      const slidesToDelete = post.slideUrls.filter(url => 
+        !url.includes('/static/') && !url.includes('/previews/')
+      )
+      if (slidesToDelete.length > 0) {
+        try {
+          await del(slidesToDelete)
+          console.log(`[cron] Deleted ${slidesToDelete.length} blobs for auto-published post ${postId}`)
+        } catch (e) {
+          console.error(`[cron] Failed to delete blobs for post ${postId}:`, e)
+        }
+      }
+    }
+
     for (const duotone of allDuotones) {
       await addSeen('duotone', `${duotone.hex1}-${duotone.hex2}`)
     }

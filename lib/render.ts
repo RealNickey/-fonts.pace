@@ -108,8 +108,52 @@ export async function uploadSlide(buffer: Buffer, filename: string): Promise<str
  * Uses a deterministic path in Blob storage to "cache" the file.
  */
 export async function getStaticAssetUrl(assetName: string): Promise<string> {
+  // Trick Vercel NFT compiler to trace and bundle these files.
+  // By referencing them as static paths, Next.js includes them in the serverless bundle.
+  if ((process.env.NODE_ENV as string) === 'test-build-trace') {
+    path.join(process.cwd(), 'public/assets/first-page.png')
+    path.join(process.cwd(), 'public/assets/last-page.png')
+    path.join(process.cwd(), 'public/assets/font-first.png')
+    path.join(process.cwd(), 'public/assets/font-last.png')
+  }
+
   const filePath = path.join(process.cwd(), 'public', 'assets', assetName)
-  const buffer = fs.readFileSync(filePath)
+  let buffer: Buffer
+
+  try {
+    buffer = fs.readFileSync(filePath)
+  } catch (error) {
+    console.warn(`[getStaticAssetUrl] Failed to read local file ${filePath}, falling back to HTTP fetch. Error:`, error)
+    
+    let host = process.env.VERCEL_URL
+    let proto = 'https'
+    
+    try {
+      const { headers } = await import('next/headers')
+      const headersList = await headers()
+      const reqHost = headersList.get('x-forwarded-host') ?? headersList.get('host')
+      if (reqHost) {
+        host = reqHost
+        proto = headersList.get('x-forwarded-proto') ?? (host.includes('localhost') ? 'http' : 'https')
+      }
+    } catch (e) {
+      // outside request context or not in next.js environment
+    }
+
+    if (!host) {
+      host = 'localhost:3000'
+      proto = 'http'
+    }
+
+    const assetUrl = `${proto}://${host}/assets/${assetName}`
+    console.log(`[getStaticAssetUrl] Fetching static asset via HTTP: ${assetUrl}`)
+    const res = await fetch(assetUrl)
+    if (!res.ok) {
+      throw new Error(`Failed to fetch static asset from URL: ${assetUrl} (Status: ${res.status})`)
+    }
+    const arrayBuffer = await res.arrayBuffer()
+    buffer = Buffer.from(arrayBuffer)
+  }
   
   // We use a fixed filename in a 'static' folder to avoid re-uploading if possible,
   // though put() will overwrite or create a new version.
@@ -117,6 +161,7 @@ export async function getStaticAssetUrl(assetName: string): Promise<string> {
     access: 'public',
     contentType: 'image/png',
     addRandomSuffix: false, // Important for "stable" URLs
+    allowOverwrite: true,
   })
   return blob.url
 }

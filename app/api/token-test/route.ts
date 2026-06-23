@@ -8,6 +8,8 @@ import { NextResponse } from 'next/server'
 import { env } from '@/lib/env'
 import { fetchFb } from '@/lib/fetch-fb'
 
+import { kv } from '@/lib/kv'
+
 export const runtime = 'nodejs'
 
 export async function GET() {
@@ -15,6 +17,10 @@ export async function GET() {
   const APP_ID = env.fbAppId
   const APP_SECRET = env.fbAppSecret
   const IG_USER_ID = env.igUserId
+
+  const v1 = await kv.get('ig:access_token')
+  const v2 = await kv.get('ig:access_token_v2')
+  const v3 = await kv.get('ig:access_token_v3')
 
   const results: Record<string, unknown> = {
     env: {
@@ -24,6 +30,14 @@ export async function GET() {
       hasAppSecret: !!APP_SECRET,
       igUserId: IG_USER_ID,
     },
+    kvState: {
+      v1_exists: !!v1,
+      v1_prefix: typeof v1 === 'string' ? v1.slice(0, 15) : null,
+      v2_exists: !!v2,
+      v2_prefix: typeof v2 === 'string' ? v2.slice(0, 15) : null,
+      v3_exists: !!v3,
+      v3_prefix: typeof v3 === 'string' ? v3.slice(0, 15) : null,
+    }
   }
 
   if (!TOKEN || !APP_ID || !APP_SECRET) {

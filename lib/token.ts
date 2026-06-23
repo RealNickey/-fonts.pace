@@ -40,23 +40,67 @@ export async function getAccessToken(): Promise<string | undefined> {
   try {
     let token = await kv.get<string>(KV_TOKEN_KEY)
     const expiresAt = await kv.get<number>(KV_EXPIRES_KEY)
+    const originalEnvToken = await kv.get<string>('ig:original_env_token')
+    const nowSeconds = Math.floor(Date.now() / 1000)
 
-    // Seed KV from env if nothing stored yet
-    if (!token) {
-      token = env.igAccessToken || null
-      if (token) {
-        // We don't know the exact expiry of the seeded token, so assume ~55 days
-        // from now (conservative; user should ideally refresh as soon as possible).
-        const assumedExpiry = Math.floor(Date.now() / 1000) + 55 * SECONDS_PER_DAY
-        await kv.set(KV_TOKEN_KEY, token)
-        await kv.set(KV_EXPIRES_KEY, assumedExpiry)
-        console.log('[token] Seeded token from env into KV. Assumed expiry in ~55 days.')
+    if (env.igAccessToken && env.igAccessToken !== originalEnvToken) {
+      console.log('[token] IG_ACCESS_TOKEN in env has changed. Validating and seeding new token...')
+      token = env.igAccessToken
+      
+      try {
+        const r = await fetchFb(`https://graph.facebook.com/debug_token?input_token=${token}&access_token=${env.fbAppId}|${env.fbAppSecret}`)
+        const d = await r.json()
+        if (d.data && d.data.is_valid) {
+          const exp = d.data.expires_at
+          let actualExpiry = nowSeconds + 55 * SECONDS_PER_DAY
+          if (exp > 0) {
+            actualExpiry = exp
+          }
+          await kv.set(KV_TOKEN_KEY, token)
+          await kv.set(KV_EXPIRES_KEY, actualExpiry)
+          await kv.set('ig:original_env_token', token)
+          console.log(`[token] Seeded new token from env. Expires at: ${new Date(actualExpiry * 1000).toISOString()}`)
+          return token
+        } else {
+          console.error('[token] The new token in env is invalid or expired:', d.data?.error?.message || d.error?.message)
+          // We still set original_env_token so we don't spam the API on every request
+          await kv.set('ig:original_env_token', token)
+          return undefined
+        }
+      } catch (e) {
+        console.error('[token] Failed to validate new env token:', e)
+        return undefined
       }
-      return token ?? undefined
+    }
+
+    // Seed KV from env if nothing stored yet (and originalEnvToken wasn't set)
+    if (!token && env.igAccessToken) {
+      token = env.igAccessToken
+      try {
+        const r = await fetchFb(`https://graph.facebook.com/debug_token?input_token=${token}&access_token=${env.fbAppId}|${env.fbAppSecret}`)
+        const d = await r.json()
+        if (d.data && d.data.is_valid) {
+          const exp = d.data.expires_at
+          let actualExpiry = nowSeconds + 55 * SECONDS_PER_DAY
+          if (exp > 0) actualExpiry = exp
+          
+          await kv.set(KV_TOKEN_KEY, token)
+          await kv.set(KV_EXPIRES_KEY, actualExpiry)
+          await kv.set('ig:original_env_token', token)
+          console.log(`[token] Initial seed from env into KV. Expires at: ${new Date(actualExpiry * 1000).toISOString()}`)
+          return token
+        } else {
+          console.error('[token] The initial token in env is invalid or expired:', d.data?.error?.message || d.error?.message)
+          await kv.set('ig:original_env_token', token)
+          return undefined
+        }
+      } catch (e) {
+        console.error('[token] Failed to validate initial env token:', e)
+        return undefined
+      }
     }
 
     // Check if we should proactively refresh
-    const nowSeconds = Math.floor(Date.now() / 1000)
     const daysRemaining = expiresAt
       ? Math.floor((expiresAt - nowSeconds) / SECONDS_PER_DAY)
       : 0
