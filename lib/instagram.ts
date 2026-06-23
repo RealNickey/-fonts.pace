@@ -19,6 +19,8 @@ async function getPageAccessToken(userToken: string, igUserId: string): Promise<
 
 export async function uploadSlideToIG(slideUrl: string): Promise<string> {
   const userToken = await getAccessToken()
+  if (!userToken) throw new Error('Missing user token')
+  if (!env.igUserId) throw new Error('Missing igUserId')
   const pageToken = await getPageAccessToken(userToken, env.igUserId)
 
   // 1. Create a container for this single slide (image or video)

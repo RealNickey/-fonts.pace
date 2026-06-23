@@ -51,7 +51,9 @@ async function getCachedMidPreview(template: string): Promise<string> {
       id: 'dummy',
       colors: ['#FFD60A', '#FF9F0A', '#FF453A', '#BF5AF2'],
       colorNames: ['Yellow', 'Orange', 'Red', 'Purple'],
-      source: 'colorhunt'
+      source: 'colorhunt' as const,
+      sourceUrl: '',
+      likes: 0
     }
     buffer = await renderSlide(React.createElement(PaletteSlide, { palette: dummyPalette }), [], 1080)
   } else { // duotone

@@ -17,7 +17,7 @@ export function DashboardUI({
   initialPending: Post[]
   initialPublished: Post[]
   runPipelineAction: (template: string) => Promise<void>
-  publishPostAction: (postId: string, formData: FormData) => Promise<void>
+  publishPostAction: (postId: string, formData: FormData) => Promise<{ error?: string } | void>
   rejectPostAction: (postId: string, formData: FormData) => Promise<void>
   deleteSlideAction: (postId: string, slideIndex: number) => Promise<{ error?: string, success?: boolean }>
   flushDatabaseAction: () => Promise<void>

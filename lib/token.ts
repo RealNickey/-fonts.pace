@@ -43,7 +43,7 @@ export async function getAccessToken(): Promise<string | undefined> {
 
     // Seed KV from env if nothing stored yet
     if (!token) {
-      token = env.igAccessToken
+      token = env.igAccessToken || null
       if (token) {
         // We don't know the exact expiry of the seeded token, so assume ~55 days
         // from now (conservative; user should ideally refresh as soon as possible).
