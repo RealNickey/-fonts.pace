@@ -105,7 +105,7 @@ export async function getAccessToken(): Promise<string | undefined> {
       ? Math.floor((expiresAt - nowSeconds) / SECONDS_PER_DAY)
       : 0
 
-    if (daysRemaining <= REFRESH_THRESHOLD_DAYS) {
+    if (token && daysRemaining <= REFRESH_THRESHOLD_DAYS) {
       console.log(`[token] Token expires in ${daysRemaining} days — refreshing now...`)
       const refreshed = await refreshToken(token)
       if (refreshed) {
@@ -114,7 +114,7 @@ export async function getAccessToken(): Promise<string | undefined> {
       console.warn('[token] Refresh failed — using existing token as fallback.')
     }
 
-    return token
+    return token ?? undefined
   } catch (err) {
     console.error('[token] KV error, falling back to env token:', err)
     return env.igAccessToken ?? undefined
